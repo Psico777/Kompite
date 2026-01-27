@@ -1,0 +1,187 @@
+version: '3.9'
+
+services:
+  # =============================================================================
+  # KOMPITE BACKEND - FastAPI Application Server
+  # =============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kompite_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://kompite:${POSTGRES_PASSWORD:-kompite_secure_2026}@postgres:5432/kompite_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-in-production}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Configuración de seguridad para transacciones atómicas
+      - DB_POOL_SIZE=20
+      - DB_MAX_OVERFLOW=10
+      - DB_POOL_TIMEOUT=30
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - kompite_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # POSTGRESQL - Base de Datos Principal (Ledger Inmutable)
+  # Configurado para ACID compliance y alta integridad transaccional
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: kompite_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=kompite
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-kompite_secure_2026}
+      - POSTGRES_DB=kompite_db
+      # Configuración de rendimiento y seguridad
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - kompite_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kompite -d kompite_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Configuración de PostgreSQL para integridad financiera
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=128MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_connections=200
+      -c synchronous_commit=on
+      -c fsync=on
+      -c full_page_writes=on
+      -c log_statement=mod
+      -c log_min_duration_statement=1000
+
+  # =============================================================================
+  # REDIS - Bloqueos Distribuidos, Matchmaking y Caché
+  # Crítico para prevenir Race Conditions en operaciones de saldo
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: kompite_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - kompite_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # Configuración para persistencia y seguridad
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 300
+      --timeout 0
+      --tcp-backlog 511
+
+  # =============================================================================
+  # CELERY WORKER - Procesamiento Asíncrono (Auditoría por Checkpoints)
+  # Ejecuta validación de integridad financiera cada 5 minutos
+  # =============================================================================
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kompite_celery_worker
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://kompite:${POSTGRES_PASSWORD:-kompite_secure_2026}@postgres:5432/kompite_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-your-super-secret-key-change-in-production}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    networks:
+      - kompite_network
+
+  # =============================================================================
+  # CELERY BEAT - Scheduler para Auditorías Periódicas
+  # Programa los Checkpoints de integridad financiera
+  # =============================================================================
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kompite_celery_beat
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://kompite:${POSTGRES_PASSWORD:-kompite_secure_2026}@postgres:5432/kompite_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - redis
+      - celery_worker
+    networks:
+      - kompite_network
+
+# =============================================================================
+# VOLUMES - Persistencia de Datos
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+    name: kompite_postgres_data
+  redis_data:
+    driver: local
+    name: kompite_redis_data
+
+# =============================================================================
+# NETWORKS - Red Interna Aislada
+# =============================================================================
+networks:
+  kompite_network:
+    driver: bridge
+    name: kompite_network
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

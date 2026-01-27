@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kompite Admin Panel</title>
+    
+    <!-- Fuentes Cyber-Luxury -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Estilos -->
+    <link rel="stylesheet" href="styles/admin.css">
+</head>
+<body>
+    <div id="app">
+        <!-- ================================================================
+             SIDEBAR
+             ================================================================ -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">⚔</span>
+                    <span class="logo-text">KOMPITE</span>
+                </div>
+                <span class="badge admin-badge">ADMIN</span>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#dashboard" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+                <a href="#deposits" class="nav-item" data-view="deposits">
+                    <span class="nav-icon">💳</span>
+                    <span class="nav-text">Depósitos</span>
+                    <span class="nav-badge pending-count">0</span>
+                </a>
+                <a href="#users" class="nav-item" data-view="users">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">Usuarios</span>
+                </a>
+                <a href="#matches" class="nav-item" data-view="matches">
+                    <span class="nav-icon">🎮</span>
+                    <span class="nav-text">Partidas</span>
+                </a>
+                <a href="#transactions" class="nav-item" data-view="transactions">
+                    <span class="nav-icon">📒</span>
+                    <span class="nav-text">Ledger</span>
+                </a>
+                <a href="#webhooks" class="nav-item" data-view="webhooks">
+                    <span class="nav-icon">🔗</span>
+                    <span class="nav-text">Webhooks</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="admin-info">
+                    <div class="admin-avatar">👤</div>
+                    <div class="admin-details">
+                        <span class="admin-name" id="admin-name">Admin</span>
+                        <span class="admin-role">Operador</span>
+                    </div>
+                </div>
+                <button class="btn-logout" id="btn-logout">Salir</button>
+            </div>
+        </aside>
+
+        <!-- ================================================================
+             MAIN CONTENT
+             ================================================================ -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="content-header">
+                <div class="header-left">
+                    <h1 id="view-title">Dashboard</h1>
+                    <span class="connection-status" id="connection-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Conectando...</span>
+                    </span>
+                </div>
+                <div class="header-right">
+                    <div class="realtime-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Usuarios Online</span>
+                            <span class="stat-value" id="online-users">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Partidas Activas</span>
+                            <span class="stat-value" id="active-matches">0</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ============================================================
+                 VISTA: DASHBOARD
+                 ============================================================ -->
+            <section id="view-dashboard" class="view active">
+                <div class="stats-grid">
+                    <div class="stat-card gold">
+                        <div class="stat-card-icon">💰</div>
+                        <div class="stat-card-content">
+                            <span class="stat-card-value" id="total-lkoins">0</span>
+                            <span class="stat-card-label">LKoins en Circulación</span>
+                        </div>
+                    </div>
+                    <div class="stat-card cyan">
+                        <div class="stat-card-icon">📥</div>
+                        <div class="stat-card-content">
+                            <span class="stat-card-value" id="pending-deposits">0</span>
+                            <span class="stat-card-label">Depósitos Pendientes</span>
+                        </div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-card-icon">✅</div>
+                        <div class="stat-card-content">
+                            <span class="stat-card-value" id="today-approved">0</span>
+                            <span class="stat-card-label">Aprobados Hoy</span>
+                        </div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-card-icon">🚨</div>
+                        <div class="stat-card-content">
+                            <span class="stat-card-value" id="flagged-users">0</span>
+                            <span class="stat-card-label">Usuarios Flaggeados</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card recent-deposits">
+                        <div class="card-header">
+                            <h3>Depósitos Recientes</h3>
+                            <a href="#deposits" class="card-link" data-view="deposits">Ver todos →</a>
+                        </div>
+                        <div class="card-body">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Monto</th>
+                                        <th>Estado</th>
+                                        <th>Fecha</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-deposits-table">
+                                    <!-- Datos dinámicos -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card system-health">
+                        <div class="card-header">
+                            <h3>Salud del Sistema</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="health-item">
+                                <span class="health-label">PostgreSQL</span>
+                                <span class="health-status healthy" id="health-postgres">●</span>
+                            </div>
+                            <div class="health-item">
+                                <span class="health-label">Redis</span>
+                                <span class="health-status healthy" id="health-redis">●</span>
+                            </div>
+                            <div class="health-item">
+                                <span class="health-label">WebSocket</span>
+                                <span class="health-status healthy" id="health-websocket">●</span>
+                            </div>
+                            <div class="health-item">
+                                <span class="health-label">Celery Workers</span>
+                                <span class="health-status healthy" id="health-celery">●</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 VISTA: DEPÓSITOS
+                 ============================================================ -->
+            <section id="view-deposits" class="view">
+                <div class="view-toolbar">
+                    <div class="filter-group">
+                        <select id="filter-deposit-status" class="filter-select">
+                            <option value="PENDING">Pendientes</option>
+                            <option value="APPROVED">Aprobados</option>
+                            <option value="REJECTED">Rechazados</option>
+                            <option value="ALL">Todos</option>
+                        </select>
+                        <input type="date" id="filter-deposit-date" class="filter-input">
+                    </div>
+                    <button class="btn btn-refresh" id="btn-refresh-deposits">
+                        🔄 Actualizar
+                    </button>
+                </div>
+
+                <div class="deposits-container">
+                    <div class="deposits-list" id="deposits-list">
+                        <!-- Tarjetas de depósito dinámicas -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 VISTA: USUARIOS
+                 ============================================================ -->
+            <section id="view-users" class="view">
+                <div class="view-toolbar">
+                    <div class="search-group">
+                        <input type="text" id="search-users" class="search-input" placeholder="Buscar por teléfono, DNI o nombre...">
+                    </div>
+                    <div class="filter-group">
+                        <select id="filter-trust-level" class="filter-select">
+                            <option value="ALL">Todos los niveles</option>
+                            <option value="GREEN">🟢 Verde</option>
+                            <option value="YELLOW">🟡 Amarillo</option>
+                            <option value="RED">🔴 Rojo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Teléfono</th>
+                                <th>Balance LKC</th>
+                                <th>Trust Level</th>
+                                <th>KYC</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 VISTA: PARTIDAS
+                 ============================================================ -->
+            <section id="view-matches" class="view">
+                <div class="view-toolbar">
+                    <div class="filter-group">
+                        <select id="filter-match-status" class="filter-select">
+                            <option value="ALL">Todos los estados</option>
+                            <option value="IN_PROGRESS">En Progreso</option>
+                            <option value="VALIDATION">En Validación</option>
+                            <option value="DISPUTED">Disputadas</option>
+                            <option value="COMPLETED">Completadas</option>
+                        </select>
+                        <select id="filter-game-type" class="filter-select">
+                            <option value="ALL">Todos los juegos</option>
+                            <option value="PENALES">Penales</option>
+                            <option value="BASKETBALL">Basketball</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Juego</th>
+                                <th>Jugadores</th>
+                                <th>Apuesta</th>
+                                <th>Estado</th>
+                                <th>Inicio</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matches-table">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 VISTA: LEDGER (TRANSACCIONES)
+                 ============================================================ -->
+            <section id="view-transactions" class="view">
+                <div class="view-toolbar">
+                    <div class="filter-group">
+                        <select id="filter-tx-type" class="filter-select">
+                            <option value="ALL">Todos los tipos</option>
+                            <option value="DEPOSIT">Depósitos</option>
+                            <option value="WITHDRAWAL">Retiros</option>
+                            <option value="ESCROW_LOCK">Escrow Lock</option>
+                            <option value="PRIZE_CREDIT">Premios</option>
+                        </select>
+                        <input type="text" id="filter-tx-user" class="filter-input" placeholder="ID Usuario...">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="table table-striped ledger-table">
+                        <thead>
+                            <tr>
+                                <th>TX Hash</th>
+                                <th>Usuario</th>
+                                <th>Tipo</th>
+                                <th>Monto</th>
+                                <th>Balance After</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-table">
+                            <!-- Datos dinámicos -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ============================================================
+                 VISTA: WEBHOOKS
+                 ============================================================ -->
+            <section id="view-webhooks" class="view">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>🔗 Configuración de Webhook - Termux Bridge</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="webhook-config">
+                            <div class="form-group">
+                                <label>Endpoint URL</label>
+                                <div class="input-with-copy">
+                                    <input type="text" readonly value="/api/v1/webhooks/deposit-verify" id="webhook-url" class="form-input">
+                                    <button class="btn btn-copy" id="btn-copy-url">📋</button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>API Key (Termux Bridge)</label>
+                                <div class="input-with-copy">
+                                    <input type="password" readonly id="webhook-api-key" class="form-input" value="●●●●●●●●●●●●●●●●">
+                                    <button class="btn btn-reveal" id="btn-reveal-key">👁</button>
+                                    <button class="btn btn-copy" id="btn-copy-key">📋</button>
+                                </div>
+                                <button class="btn btn-warning" id="btn-regenerate-key">🔄 Regenerar API Key</button>
+                            </div>
+
+                            <div class="webhook-example">
+                                <h4>Ejemplo de Request</h4>
+                                <pre><code>{
+  "transaction_reference": "YAPE-123456",
+  "amount_pen": 50.00,
+  "sender_phone": "+51999888777"
+}</code></pre>
+                            </div>
+
+                            <div class="webhook-logs">
+                                <h4>Logs Recientes</h4>
+                                <div class="logs-container" id="webhook-logs">
+                                    <!-- Logs dinámicos -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- ====================================================================
+         MODALES
+         ==================================================================== -->
+    
+    <!-- Modal: Detalle de Depósito -->
+    <div class="modal" id="modal-deposit-detail">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Detalle de Depósito</h3>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="deposit-detail">
+                    <div class="deposit-evidence">
+                        <img src="" alt="Evidencia" id="deposit-evidence-img">
+                    </div>
+                    <div class="deposit-info">
+                        <div class="info-row">
+                            <span class="info-label">Usuario:</span>
+                            <span class="info-value" id="deposit-user"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Teléfono:</span>
+                            <span class="info-value" id="deposit-phone"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Monto:</span>
+                            <span class="info-value gold" id="deposit-amount"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Referencia:</span>
+                            <span class="info-value mono" id="deposit-reference"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Fecha:</span>
+                            <span class="info-value" id="deposit-date"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Balance Actual:</span>
+                            <span class="info-value gold" id="deposit-current-balance"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Balance Hash:</span>
+                            <span class="info-value mono small" id="deposit-balance-hash"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Análisis Forense OCR -->
+                <div class="forensic-analysis-section">
+                    <div class="forensic-header">
+                        <h4>🔬 Análisis Forense</h4>
+                        <button class="btn btn-sm btn-scan" id="btn-scan-forensic">
+                            <span class="scan-icon">⚡</span> Ejecutar Análisis
+                        </button>
+                    </div>
+                    
+                    <div class="forensic-terminal" id="forensic-terminal">
+                        <div class="terminal-header">
+                            <span class="terminal-dots">
+                                <span class="dot red"></span>
+                                <span class="dot yellow"></span>
+                                <span class="dot green"></span>
+                            </span>
+                            <span class="terminal-title">kompite-forensic-analyzer v1.7</span>
+                        </div>
+                        <div class="terminal-body" id="terminal-output">
+                            <div class="terminal-prompt">
+                                <span class="prompt-symbol">$</span>
+                                <span class="prompt-text">Esperando análisis...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="forensic-verdict" id="forensic-verdict" style="display: none;">
+                        <div class="verdict-icon" id="verdict-icon"></div>
+                        <div class="verdict-details">
+                            <span class="verdict-label" id="verdict-label"></span>
+                            <span class="verdict-confidence" id="verdict-confidence"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="rejection-input" id="rejection-input" style="display: none;">
+                    <input type="text" id="rejection-reason" placeholder="Motivo del rechazo..." class="form-input">
+                </div>
+                <button class="btn btn-error" id="btn-reject-deposit">❌ Rechazar</button>
+                <button class="btn btn-success" id="btn-approve-deposit">✅ Aprobar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmar Acción -->
+    <div class="modal" id="modal-confirm">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3 id="confirm-title">Confirmar Acción</h3>
+                <button class="modal-close" data-close-modal>&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message">¿Estás seguro de realizar esta acción?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-close-modal>Cancelar</button>
+                <button class="btn btn-primary" id="btn-confirm-action">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+</html>

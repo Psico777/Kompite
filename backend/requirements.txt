@@ -1,0 +1,75 @@
+# =============================================================================
+# KOMPITE BACKEND - Dependencias Python
+# Infraestructura de Arbitraje para Economía de Habilidad
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# FRAMEWORK WEB - FastAPI con soporte async
+# -----------------------------------------------------------------------------
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+python-multipart==0.0.9
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# -----------------------------------------------------------------------------
+# BASE DE DATOS - PostgreSQL con SQLAlchemy Async
+# Crítico para transacciones atómicas y Ledger inmutable
+# -----------------------------------------------------------------------------
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+alembic==1.13.1
+psycopg2-binary==2.9.9
+
+# -----------------------------------------------------------------------------
+# REDIS - Bloqueos Distribuidos y Caché
+# Prevención de Race Conditions en operaciones de saldo
+# -----------------------------------------------------------------------------
+redis==5.0.1
+aioredis==2.0.1
+
+# -----------------------------------------------------------------------------
+# CELERY - Procesamiento Asíncrono
+# Auditoría por Checkpoints y validación de integridad
+# -----------------------------------------------------------------------------
+celery==5.3.6
+flower==2.0.1
+
+# -----------------------------------------------------------------------------
+# WEBSOCKETS - Comunicación en Tiempo Real
+# Heartbeat, sincronización de partidas y matchmaking
+# -----------------------------------------------------------------------------
+websockets==12.0
+python-socketio==5.11.0
+
+# -----------------------------------------------------------------------------
+# SEGURIDAD Y CRIPTOGRAFÍA
+# Balance hash SHA-256 e integridad de transacciones
+# -----------------------------------------------------------------------------
+cryptography==42.0.2
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# -----------------------------------------------------------------------------
+# VALIDACIÓN Y UTILIDADES
+# -----------------------------------------------------------------------------
+httpx==0.26.0
+tenacity==8.2.3
+structlog==24.1.0
+orjson==3.9.13
+
+# -----------------------------------------------------------------------------
+# TESTING
+# -----------------------------------------------------------------------------
+pytest==8.0.0
+pytest-asyncio==0.23.4
+pytest-cov==4.1.0
+httpx==0.26.0
+factory-boy==3.3.0
+
+# -----------------------------------------------------------------------------
+# MONITOREO Y OBSERVABILIDAD
+# -----------------------------------------------------------------------------
+prometheus-client==0.19.0
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
