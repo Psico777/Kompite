@@ -205,6 +205,12 @@ class MatchManager:
         Si encuentra match, crea la sala y retorna.
         Si está habilitado el bot y no hay oponentes, matchea con LK_Bot.
         """
+        # Verificar si el jugador ya está en una partida activa
+        if entry.user_id in self.player_to_match:
+            existing_match = self.player_to_match[entry.user_id]
+            print(f"[MATCHMAKING] User {entry.user_id} already in match {existing_match}")
+            return None
+        
         queue_key = self._get_queue_key(entry.game_type, entry.bet_amount)
         
         # Intentar adquirir lock para esta cola
@@ -722,6 +728,7 @@ async def _transition_to_locked(room: MatchRoom):
     initial_hash = await match_manager.generate_initial_hash(room.match_id)
     
     # Notificar transición a LOCKED
+    print(f"[STATE] Match {room.match_id} -> LOCKED")
     await sio.emit('match_locked', {
         'match_id': str(room.match_id),
         'state': MatchState.LOCKED.value,
@@ -729,6 +736,16 @@ async def _transition_to_locked(room: MatchRoom):
         'escrow_required': str(room.bet_amount),
         'confirm_timeout': SocketConfig.ESCROW_CONFIRMATION_TIMEOUT
     }, room=room.get_room_name())
+    
+    # Si es partida con bot, auto-confirmar y empezar inmediatamente
+    if room.is_bot_match:
+        print(f"[BOT] Auto-starting bot match {room.match_id}")
+        # Auto-confirmar escrow para todos los jugadores humanos
+        for uid, player in room.players.items():
+            if not is_bot_sid(player.sid):
+                player.escrow_confirmed = True
+        # Iniciar la partida directamente
+        await _start_match(room)
 
 
 async def _execute_soft_lock(room: MatchRoom) -> bool:
@@ -885,10 +902,14 @@ async def confirm_escrow(sid: str, data: dict):
 
 async def _start_match(room: MatchRoom):
     """Inicia la partida (transición a IN_PROGRESS)."""
+    print(f"[STATE] Starting match {room.match_id}, current state: {room.state}")
     success = await match_manager.transition_state(room.match_id, MatchState.IN_PROGRESS)
     
     if not success:
+        print(f"[STATE] Failed to transition to IN_PROGRESS for {room.match_id}")
         return
+    
+    print(f"[STATE] Match {room.match_id} -> IN_PROGRESS")
     
     # Revelar server seed hash (para Provably Fair)
     await sio.emit('match_started', {
@@ -897,6 +918,11 @@ async def _start_match(room: MatchRoom):
         'started_at': room.started_at,
         'server_seed_hash': hashlib.sha256(room.server_seed.encode()).hexdigest()
     }, room=room.get_room_name())
+    
+    # Si es partida con bot de Ludo, inicializar el juego automáticamente
+    if room.is_bot_match and room.game_type == 'LUDO':
+        print(f"[BOT] Auto-initializing Ludo game for bot match {room.match_id}")
+        await _auto_start_ludo_game(room)
 
 
 @sio.event
@@ -1132,6 +1158,47 @@ async def _bot_play_ludo_turn(match_id: UUID, ludo: 'LudoEngine', room: 'MatchRo
                 }, room=player.sid)
 
 
+async def _auto_start_ludo_game(room: MatchRoom):
+    """
+    Inicia automáticamente una partida de Ludo para matches con bot.
+    Se llama después de que el match transiciona a IN_PROGRESS.
+    """
+    from .ludo_engine import LudoEngine
+    
+    match_id = room.match_id
+    
+    # Verificar que no haya ya un juego de Ludo para este match
+    if match_id in ludo_games:
+        print(f"[LUDO] Game already exists for {match_id}")
+        return
+    
+    # Crear instancia del motor de Ludo
+    player_ids = list(room.players.keys())
+    ludo = LudoEngine(match_id, player_ids)
+    ludo_games[match_id] = ludo
+    
+    # Iniciar juego
+    result = ludo.start_game()
+    
+    print(f"[LUDO] Auto-started game {match_id}, first player: {result.get('first_player')}")
+    
+    # Enviar a cada jugador su información
+    for uid, player in room.players.items():
+        # No enviar a bots
+        if is_bot_sid(player.sid):
+            continue
+        ludo_player = ludo.players.get(uid)
+        await sio.emit('ludo:game_started', {
+            **result,
+            'your_user_id': str(uid),
+            'your_color': ludo_player.color.value if ludo_player else None,
+            'state': ludo.get_state()
+        }, room=player.sid)
+    
+    # Si el primer turno es del bot, que juegue automáticamente
+    await _bot_play_ludo_turn(match_id, ludo, room)
+
+
 @sio.event
 async def ludo_start_game(sid: str, data: dict):
     """
@@ -1149,6 +1216,22 @@ async def ludo_start_game(sid: str, data: dict):
     
     if not room or room.state != MatchState.IN_PROGRESS:
         await sio.emit('error', {'message': 'Match no válido'}, room=sid)
+        return
+    
+    # Verificar si ya existe un juego de Ludo para este match
+    if match_id in ludo_games:
+        # El juego ya fue iniciado (probablemente auto-iniciado para bot match)
+        ludo = ludo_games[match_id]
+        ludo_player = ludo.players.get(user_id)
+        await sio.emit('ludo:game_started', {
+            'event': 'game_started',
+            'first_player': str(ludo.current_user_id),
+            'first_color': ludo.current_player.color.value if ludo.current_player else None,
+            'server_seed_hash': ludo.dice.server_seed_hash,
+            'your_user_id': str(user_id),
+            'your_color': ludo_player.color.value if ludo_player else None,
+            'state': ludo.get_state()
+        }, room=sid)
         return
     
     # Crear instancia del motor de Ludo
@@ -1187,10 +1270,14 @@ async def ludo_roll_dice(sid: str, data: dict):
     }
     """
     user_id = match_manager.get_user_by_sid(sid)
+    print(f"[LUDO] roll_dice from sid={sid}, user_id={user_id}, data={data}")
+    
     if not user_id:
+        await sio.emit('error', {'message': 'User not found'}, room=sid)
         return
     
     match_id = UUID(data['match_id'])
+    print(f"[LUDO] Looking for game {match_id}, available games: {list(ludo_games.keys())}")
     
     if match_id not in ludo_games:
         await sio.emit('error', {'message': 'Juego de Ludo no encontrado'}, room=sid)
@@ -1198,6 +1285,8 @@ async def ludo_roll_dice(sid: str, data: dict):
     
     ludo = ludo_games[match_id]
     room = match_manager.get_match(match_id)
+    
+    print(f"[LUDO] Current turn: {ludo.current_user_id}, requesting user: {user_id}")
     
     if not room:
         return
@@ -1215,6 +1304,12 @@ async def ludo_roll_dice(sid: str, data: dict):
         'player': str(user_id),
         'state': ludo.get_state()
     }, room=room.get_room_name())
+    
+    # Si no hay movimientos disponibles (turno pasó), verificar si es turno del bot
+    if result.get('no_moves') or not result.get('available_moves'):
+        print(f"[LUDO] No moves available, next player: {ludo.current_user_id}")
+        await asyncio.sleep(0.5)  # Pequeña pausa
+        await _bot_play_ludo_turn(match_id, ludo, room)
 
 
 @sio.event

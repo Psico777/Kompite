@@ -459,6 +459,12 @@ function onMatchLocked(data) {
 }
 
 function onMatchStarted(data) {
+    // Evitar procesamiento duplicado
+    if (state.matchState === 'IN_PROGRESS') {
+        console.log('[MATCH] Match already in progress, ignoring duplicate event');
+        return;
+    }
+    
     state.matchState = 'IN_PROGRESS';
     
     // Primero navegar a la vista de match para que el DOM esté disponible
@@ -517,6 +523,12 @@ function initGameArea(gameType) {
 function initLudoGame(gameArea) {
     console.log('[LUDO] Inicializando área de juego...');
     console.log('[LUDO] gameArea:', gameArea);
+    
+    // Evitar inicialización duplicada
+    if (window.ludoGame && window.ludoGame.matchId === state.currentMatch?.match_id) {
+        console.log('[LUDO] Juego ya inicializado para este match');
+        return;
+    }
     
     // Crear estructura HTML para Ludo
     gameArea.innerHTML = `

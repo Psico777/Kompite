@@ -109,13 +109,24 @@ class LudoBoard {
     _initDimensions() {
         // Hacer el canvas responsivo
         const container = this.canvas.parentElement;
-        const size = Math.min(container.clientWidth, container.clientHeight, 600);
+        // Usar dimensiones del contenedor, o del canvas si el contenedor no tiene tamaño
+        let containerWidth = container?.clientWidth || 0;
+        let containerHeight = container?.clientHeight || 0;
+        
+        // Si el contenedor no tiene dimensiones, usar las del canvas o un valor por defecto
+        if (containerWidth <= 0 || containerHeight <= 0) {
+            containerWidth = this.canvas.width || 480;
+            containerHeight = this.canvas.height || 480;
+        }
+        
+        // Tamaño mínimo de 300px, máximo de 600px
+        const size = Math.max(300, Math.min(containerWidth, containerHeight, 600));
         
         this.canvas.width = size;
         this.canvas.height = size;
         
         this.boardSize = size - LudoConfig.BOARD_PADDING * 2;
-        this.cellSize = this.boardSize / 15; // Tablero de 15x15
+        this.cellSize = Math.max(1, this.boardSize / 15); // Tablero de 15x15, mínimo 1px
     }
     
     _calculatePositions() {
@@ -273,7 +284,7 @@ class LudoBoard {
             // Área de piezas (círculo interior)
             const centerX = pos.x + homeSize / 2;
             const centerY = pos.y + homeSize / 2;
-            const radius = homeSize / 3;
+            const radius = Math.max(1, homeSize / 3); // Mínimo radio de 1px para evitar errores
             
             ctx.beginPath();
             ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
@@ -779,10 +790,25 @@ class LudoGameController {
         // Juego iniciado
         this.socket.on('ludo:game_started', (data) => {
             console.log('Game started:', data);
-            if (data.first_player === this.myUserId) {
+            
+            // Establecer myUserId desde los datos del evento
+            this.myUserId = data.your_user_id;
+            this.board.setMyInfo(data.your_user_id, data.your_color);
+            
+            // Actualizar estado del juego si viene incluido
+            if (data.state) {
+                this.board.setGameState(data.state);
+            }
+            
+            // Determinar si es nuestro turno
+            const isMyTurn = data.first_player === data.your_user_id;
+            
+            if (isMyTurn) {
                 this._showMessage('¡Tú empiezas! Tira el dado.');
+                this._enableDiceButton(true);
             } else {
                 this._showMessage('Tu oponente empieza.');
+                this._enableDiceButton(false);
             }
         });
         
@@ -793,34 +819,97 @@ class LudoGameController {
         
         // Dado lanzado
         this.socket.on('ludo:dice_rolled', (data) => {
-            this.board.animateDiceRoll(data.roll.value).then(() => {
-                if (data.available_moves && data.available_moves.length > 0) {
-                    // Convertir a formato de piezas seleccionables
-                    const pieces = data.available_moves.map(m => ({
+            console.log('[LUDO] Dice rolled:', data);
+            
+            // Mostrar el valor del dado
+            this.board.showDice(data.roll.value);
+            
+            // Si hay movimientos disponibles, marcar piezas seleccionables
+            if (data.available_moves && data.available_moves.length > 0) {
+                // Convertir a formato de piezas seleccionables con estado
+                const pieces = data.available_moves.map(m => {
+                    let state = 'ACTIVE';
+                    if (m.from === -1) {
+                        state = 'HOME';
+                    } else if (m.safe_zone_pos !== undefined && m.safe_zone_pos >= 0) {
+                        state = 'SAFE_ZONE';
+                    }
+                    
+                    return {
                         piece_id: m.piece_id,
                         owner: this.board.myColor,
-                        position: m.from
-                    }));
-                    this.board.setSelectablePieces(pieces);
-                } else {
-                    this.board.setSelectablePieces([]);
+                        position: m.from,
+                        state: state,
+                        safe_zone_pos: m.safe_zone_pos || 0
+                    };
+                });
+                console.log('[LUDO] Selectable pieces:', pieces);
+                console.log('[LUDO] My color:', this.board.myColor);
+                this.board.setSelectablePieces(pieces);
+                this._showMessage('Selecciona una ficha para mover');
+                this._enableDiceButton(false);
+            } else {
+                this.board.setSelectablePieces([]);
+                
+                // Si no hay movimientos, puede ser que el turno pasó
+                if (data.no_moves) {
+                    this._showMessage('Sin movimientos, turno del oponente');
+                } else if (data.can_roll_again) {
+                    this._showMessage('¡Sacaste 6! Tira otra vez');
+                    this._enableDiceButton(true);
                 }
-            });
+            }
         });
         
         // Pieza movida
         this.socket.on('ludo:piece_moved', (data) => {
+            console.log('[LUDO] Piece moved:', data);
             this.board.setSelectablePieces([]);
             this.board.hideDice();
             
-            if (data.move.capture) {
+            // Actualizar estado del tablero
+            if (data.state) {
+                this.board.setGameState(data.state);
+            }
+            
+            if (data.move && data.move.capture) {
                 this._showMessage(`¡Captura! ${data.move.capture.player}`);
             }
-            if (data.move.finished) {
+            if (data.move && data.move.finished) {
                 this._showMessage('¡Pieza llegó a casa!');
             }
+            
+            // Si puede tirar otra vez (sacó 6 o capturó)
             if (data.roll_again) {
-                this._showMessage('¡Tira de nuevo!');
+                this._showMessage('¡Sacaste 6! Tira otra vez');
+                this._enableDiceButton(true);
+            } else {
+                // Si es el turno del jugador actual (puede que haya cambiado)
+                const isMyTurn = data.state?.current_player === this.myUserId;
+                if (isMyTurn) {
+                    this._showMessage('¡Tu turno! Tira el dado');
+                    this._enableDiceButton(true);
+                } else {
+                    this._showMessage('Turno del oponente');
+                    this._enableDiceButton(false);
+                }
+            }
+        });
+        
+        // Turno pasado (cuando no hay movimientos)
+        this.socket.on('ludo:turn_passed', (data) => {
+            console.log('[LUDO] Turn passed:', data);
+            if (data.state) {
+                this.board.setGameState(data.state);
+            }
+            
+            const isMyTurn = data.state?.current_player === this.myUserId;
+            if (isMyTurn) {
+                this._showMessage('¡Tu turno! Tira el dado');
+                this._enableDiceButton(true);
+            } else {
+                this._showMessage('Turno del oponente');
+                this._enableDiceButton(false);
             }
         });
         
@@ -845,7 +934,7 @@ class LudoGameController {
         // Generar client seed para Provably Fair
         const clientSeed = this._generateClientSeed();
         
-        this.socket.emit('ludo:roll_dice', {
+        this.socket.emit('ludo_roll_dice', {
             match_id: this.matchId,
             client_seed: clientSeed
         });
@@ -857,7 +946,7 @@ class LudoGameController {
     }
     
     movePiece(pieceId) {
-        this.socket.emit('ludo:move_piece', {
+        this.socket.emit('ludo_move_piece', {
             match_id: this.matchId,
             piece_id: pieceId
         });
@@ -874,8 +963,19 @@ class LudoGameController {
     // -------------------------------------------------------------------------
     
     _showMessage(msg) {
-        // TODO: Implementar notificación visual
+        // Actualizar UI de estado
+        const statusEl = document.getElementById('ludo-status');
+        if (statusEl) {
+            statusEl.textContent = msg;
+        }
         console.log('Game message:', msg);
+    }
+    
+    _enableDiceButton(enabled) {
+        const btn = document.getElementById('btn-roll-dice');
+        if (btn) {
+            btn.disabled = !enabled;
+        }
     }
     
     _showResult(isWinner, data) {
