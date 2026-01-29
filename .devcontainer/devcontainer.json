@@ -3,8 +3,9 @@
   "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "moby": true,
-      "installDockerBuildx": true
+      "moby": false,
+      "installDockerBuildx": true,
+      "dockerDashComposeVersion": "v2"
     },
     "ghcr.io/devcontainers/features/node:1": {
       "version": "20"
