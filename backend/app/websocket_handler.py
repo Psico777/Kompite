@@ -265,10 +265,12 @@ class MatchManager:
         # Crear perfil de seguridad para el bot
         security_profile = PlayerSecurityProfile(
             user_id=UUID(bot_profile["user_id"]),
-            username=bot_profile["username"],
-            current_ip="127.0.0.1",
-            device_fingerprint="LK_BOT_DEVICE",
             trust_score=100,
+            trust_level="GREEN",
+            kyc_status="VERIFIED",
+            is_frozen=False,
+            device_fingerprint="LK_BOT_DEVICE",
+            current_ip="127.0.0.1",
             lkoins_balance=Decimal(bot_profile["balance"])
         )
         
@@ -277,7 +279,6 @@ class MatchManager:
             sid=f"bot_{bot_profile['user_id']}",
             game_type=game_type,
             bet_amount=bet_amount,
-            joined_at=time.time(),
             security_profile=security_profile
         )
     
@@ -462,6 +463,24 @@ match_manager = MatchManager()
 
 
 # =============================================================================
+# FUNCIONES HELPER PARA BOTS
+# =============================================================================
+
+def is_bot_sid(sid: str) -> bool:
+    """Verifica si un SID corresponde a un bot."""
+    return sid is not None and sid.startswith('bot_')
+
+
+async def safe_emit(event: str, data: dict, to: str = None, room: str = None):
+    """Emite evento solo a clientes reales (no bots)."""
+    if to and is_bot_sid(to):
+        return  # No emitir a bots
+    if room and is_bot_sid(room):
+        return  # No emitir a bots
+    await sio.emit(event, data, to=to, room=room)
+
+
+# =============================================================================
 # HANDLERS DE EVENTOS
 # =============================================================================
 
@@ -585,9 +604,11 @@ async def join_matchmaking(sid: str, data: dict):
 
 async def _handle_match_found(room: MatchRoom):
     """Procesa cuando se encuentra un match."""
-    # Unir jugadores a la sala
+    # Unir jugadores a la sala (excepto bots que no tienen conexión real)
     for player in room.players.values():
-        await sio.enter_room(player.sid, room.get_room_name())
+        # Solo unir a la sala si es un jugador real (no bot)
+        if not player.sid.startswith('bot_'):
+            await sio.enter_room(player.sid, room.get_room_name())
     
     # Verificar colusión
     players_list = list(room.players.values())
@@ -726,12 +747,18 @@ async def _execute_soft_lock(room: MatchRoom) -> bool:
     
     try:
         for user_id, player in room.players.items():
+            # Los bots tienen balance infinito - no verificar
+            if is_bot_sid(player.sid):
+                player.balance_at_lock = Decimal('999999')
+                locked_users.append(user_id)
+                continue
+                
             # Obtener balance actual del usuario (simulado - en prod va a la DB)
             user_balance = await _get_user_balance(user_id)
             
             if user_balance < room.bet_amount:
                 # Saldo insuficiente
-                await sio.emit('error', {
+                await safe_emit('error', {
                     'message': f'Saldo insuficiente para la apuesta',
                     'code': 'INSUFFICIENT_BALANCE'
                 }, to=player.sid)
@@ -1022,6 +1049,89 @@ async def cancel_matchmaking(sid: str, data: dict):
 ludo_games: Dict[UUID, 'LudoEngine'] = {}
 
 
+async def _bot_play_ludo_turn(match_id: UUID, ludo: 'LudoEngine', room: 'MatchRoom'):
+    """
+    Hace que el bot juegue su turno automáticamente en Ludo.
+    """
+    import random
+    
+    # Verificar si el turno actual es del bot
+    current_user_id = ludo.current_user_id
+    bot_user_id = UUID(LKBot.config.BOT_USER_ID)
+    
+    if current_user_id != bot_user_id:
+        return  # No es turno del bot
+    
+    print(f"[BOT] Turno del bot en partida {match_id}")
+    
+    # Esperar un poco para simular pensamiento humano
+    await asyncio.sleep(LKBot.get_response_delay())
+    
+    # 1. Tirar dado
+    result = ludo.roll_dice(bot_user_id)
+    
+    if 'error' in result:
+        print(f"[BOT] Error al tirar dado: {result['error']}")
+        return
+    
+    print(f"[BOT] Dado: {result.get('roll', {}).get('value', '?')}")
+    
+    # Enviar resultado del dado a jugadores humanos
+    for uid, player in room.players.items():
+        if not is_bot_sid(player.sid):
+            await sio.emit('ludo:dice_rolled', {
+                **result,
+                'player': str(bot_user_id),
+                'state': ludo.get_state()
+            }, room=player.sid)
+    
+    # Pequeña pausa antes de mover
+    await asyncio.sleep(0.3)
+    
+    # 2. Mover pieza si hay movimientos válidos
+    available_moves = result.get('available_moves', [])
+    
+    if available_moves:
+        # Elegir un movimiento al azar
+        move = random.choice(available_moves)
+        piece_id = move.get('piece_id', 0)
+        
+        move_result = ludo.move_piece(bot_user_id, piece_id)
+        
+        if 'error' not in move_result:
+            print(f"[BOT] Movió pieza {piece_id}")
+            
+            # Enviar resultado del movimiento a jugadores humanos
+            for uid, player in room.players.items():
+                if not is_bot_sid(player.sid):
+                    await sio.emit('ludo:piece_moved', {
+                        **move_result,
+                        'player': str(bot_user_id),
+                        'state': ludo.get_state(),
+                        'board': ludo.get_board_state()
+                    }, room=player.sid)
+            
+            # Si el juego terminó
+            if move_result.get('event') == 'game_over':
+                await _handle_ludo_game_over(match_id, room, move_result)
+                return
+            
+            # Si puede tirar de nuevo (sacó 6)
+            if move_result.get('roll_again'):
+                await asyncio.sleep(0.5)
+                await _bot_play_ludo_turn(match_id, ludo, room)
+    else:
+        print(f"[BOT] Sin movimientos válidos, pasa turno")
+        # Enviar notificación de que pasó turno
+        for uid, player in room.players.items():
+            if not is_bot_sid(player.sid):
+                await sio.emit('ludo:turn_passed', {
+                    'player': str(bot_user_id),
+                    'reason': 'no_valid_moves',
+                    'state': ludo.get_state()
+                }, room=player.sid)
+
+
 @sio.event
 async def ludo_start_game(sid: str, data: dict):
     """
@@ -1051,6 +1161,9 @@ async def ludo_start_game(sid: str, data: dict):
     
     # Enviar a cada jugador su información
     for uid, player in room.players.items():
+        # No enviar a bots
+        if is_bot_sid(player.sid):
+            continue
         ludo_player = ludo.players.get(uid)
         await sio.emit('ludo:game_started', {
             **result,
@@ -1058,6 +1171,9 @@ async def ludo_start_game(sid: str, data: dict):
             'your_color': ludo_player.color.value if ludo_player else None,
             'state': ludo.get_state()
         }, room=player.sid)
+    
+    # Si el primer turno es del bot, que juegue automáticamente
+    await _bot_play_ludo_turn(match_id, ludo, room)
 
 
 @sio.event
@@ -1135,17 +1251,24 @@ async def ludo_move_piece(sid: str, data: dict):
         await sio.emit('error', {'message': result['error']}, room=sid)
         return
     
-    # Enviar resultado a todos los jugadores
-    await sio.emit('ludo:piece_moved', {
-        **result,
-        'player': str(user_id),
-        'state': ludo.get_state(),
-        'board': ludo.get_board_state()
-    }, room=room.get_room_name())
+    # Enviar resultado a todos los jugadores humanos
+    for uid, player in room.players.items():
+        if not is_bot_sid(player.sid):
+            await sio.emit('ludo:piece_moved', {
+                **result,
+                'player': str(user_id),
+                'state': ludo.get_state(),
+                'board': ludo.get_board_state()
+            }, room=player.sid)
     
     # Si el juego terminó, limpiar
     if result.get('event') == 'game_over':
         await _handle_ludo_game_over(match_id, room, result)
+        return
+    
+    # Si no es roll_again del jugador actual, verificar si es turno del bot
+    if not result.get('roll_again'):
+        await _bot_play_ludo_turn(match_id, ludo, room)
 
 
 async def _handle_ludo_game_over(match_id: UUID, room: MatchRoom, result: dict):
@@ -1247,6 +1370,14 @@ async def _handle_ludo_game_over(match_id: UUID, room: MatchRoom, result: dict):
 # APLICACIÓN ASGI
 # =============================================================================
 
-def create_socket_app():
-    """Crea la aplicación ASGI para Socket.IO."""
-    return socketio.ASGIApp(sio)
+def create_socket_app(other_asgi_app=None):
+    """
+    Crea la aplicación ASGI para Socket.IO.
+    
+    Args:
+        other_asgi_app: Aplicación ASGI a envolver (ej: FastAPI)
+    
+    Returns:
+        ASGIApp que maneja Socket.IO y delega el resto a other_asgi_app
+    """
+    return socketio.ASGIApp(sio, other_asgi_app=other_asgi_app)

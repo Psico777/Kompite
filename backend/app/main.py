@@ -244,11 +244,10 @@ async def verify_player_endpoint(request: Request):
 # MONTAR SOCKET.IO
 # =============================================================================
 
-# Crear aplicación Socket.IO
-socket_app = create_socket_app()
-
-# Montar Socket.IO en la aplicación FastAPI
-app.mount("/socket.io", socket_app)
+# En lugar de montar Socket.IO como subaplicación,
+# creamos la aplicación combinada que Socket.IO envuelve a FastAPI
+# Esto permite que WebSocket upgrades funcionen correctamente
+combined_app = create_socket_app(app)
 
 
 # =============================================================================

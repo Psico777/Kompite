@@ -11,9 +11,38 @@
 // CONFIGURACIÓN
 // =============================================================================
 
+// Detectar automáticamente el host del backend
+// En desarrollo local: localhost:8000
+// En Codespaces/DevContainers: usa el mismo host pero puerto 8000
+function getBackendHost() {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // Local development
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:8000';
+    }
+    
+    // GitHub Codespaces: formato xxx-3000.xxx.github.dev -> xxx-8000.xxx.github.dev
+    if (hostname.includes('.app.github.dev') || hostname.includes('.github.dev')) {
+        // Reemplazar el puerto en la URL del codespace
+        const newHostname = hostname.replace(/-3000\./, '-8000.');
+        return `${protocol}//${newHostname}`;
+    }
+    
+    // Otros entornos: intentar reemplazar el puerto
+    return `${protocol}//${hostname.replace('-3000', '-8000').replace(':3000', ':8000')}`;
+}
+
+const BACKEND_HOST = getBackendHost();
+
+// Log para debugging
+console.log('[CONFIG] Backend Host:', BACKEND_HOST);
+console.log('[CONFIG] Frontend Host:', window.location.origin);
+
 const CONFIG = {
-    API_URL: 'http://localhost:8000',
-    WS_URL: 'http://localhost:8000',
+    API_URL: BACKEND_HOST,
+    WS_URL: BACKEND_HOST,
     HEARTBEAT_INTERVAL: 3000,  // 3 segundos
     RECONNECT_DELAY: 2000,
     LKOIN_TO_SOLES: 0.20,  // 1 LKoin = 0.20 soles (5:1)
@@ -153,10 +182,11 @@ function initSocket() {
     
     state.socket = io(CONFIG.WS_URL, {
         path: '/socket.io/',
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionDelay: CONFIG.RECONNECT_DELAY,
         reconnectionAttempts: 5,
+        upgrade: true,
     });
     
     // Eventos de conexión
@@ -430,11 +460,18 @@ function onMatchLocked(data) {
 
 function onMatchStarted(data) {
     state.matchState = 'IN_PROGRESS';
+    
+    // Primero navegar a la vista de match para que el DOM esté disponible
+    navigateTo('match');
+    
+    // Actualizar UI
     document.getElementById('match-status').textContent = 'EN PROGRESO';
     showToast('¡La partida ha comenzado!', 'success');
     
-    // Aquí se inicializaría el juego específico
-    initGameArea(state.selectedGame);
+    // Esperar un frame para que la vista sea visible, luego inicializar el juego
+    requestAnimationFrame(() => {
+        initGameArea(state.selectedGame);
+    });
 }
 
 function onMoveReceived(data) {
@@ -478,6 +515,9 @@ function initGameArea(gameType) {
 }
 
 function initLudoGame(gameArea) {
+    console.log('[LUDO] Inicializando área de juego...');
+    console.log('[LUDO] gameArea:', gameArea);
+    
     // Crear estructura HTML para Ludo
     gameArea.innerHTML = `
         <div class="ludo-game-container">
@@ -513,32 +553,43 @@ function initLudoGame(gameArea) {
         </div>
     `;
     
-    // Inicializar el controlador de Ludo
-    if (typeof LudoGameController !== 'undefined') {
-        window.ludoGame = new LudoGameController(
-            'ludo-canvas',
-            state.socket,
-            state.currentMatch?.match_id
-        );
+    // Usar setTimeout para dar tiempo al DOM de renderizar
+    setTimeout(() => {
+        const canvas = document.getElementById('ludo-canvas');
+        console.log('[LUDO] Canvas encontrado:', canvas);
         
-        // Configurar eventos de UI
-        document.getElementById('btn-roll-dice')?.addEventListener('click', () => {
-            window.ludoGame?.requestDiceRoll();
-        });
+        if (!canvas) {
+            console.error('[LUDO] Canvas no encontrado después de crear HTML');
+            console.error('[LUDO] gameArea.innerHTML:', gameArea.innerHTML.substring(0, 200));
+            return;
+        }
         
-        // Emitir evento de inicio
-        state.socket.emit('ludo_start_game', {
-            match_id: state.currentMatch?.match_id
-        });
-    } else {
-        console.error('LudoGameController no está cargado');
-        gameArea.innerHTML = `
-            <div class="game-placeholder">
-                <h2>🎲 Error de carga</h2>
-                <p>No se pudo cargar el motor de Ludo</p>
-            </div>
-        `;
-    }
+        if (typeof LudoGameController === 'undefined') {
+            console.error('[LUDO] LudoGameController no está definido');
+            return;
+        }
+        
+        try {
+            window.ludoGame = new LudoGameController(
+                'ludo-canvas',
+                state.socket,
+                state.currentMatch?.match_id
+            );
+            console.log('[LUDO] Controlador creado exitosamente');
+            
+            // Configurar eventos de UI
+            document.getElementById('btn-roll-dice')?.addEventListener('click', () => {
+                window.ludoGame?.requestDiceRoll();
+            });
+            
+            // Emitir evento de inicio
+            state.socket.emit('ludo_start_game', {
+                match_id: state.currentMatch?.match_id
+            });
+        } catch (err) {
+            console.error('[LUDO] Error al crear controlador:', err);
+        }
+    }, 100); // 100ms de delay para asegurar render
 }
 
 // =============================================================================
@@ -1305,6 +1356,58 @@ const CopyModule = {
 // =============================================================================
 // INICIALIZACIÓN (ACTUALIZADA)
 // =============================================================================
+
+// Funciones de inicialización adicionales para compatibilidad
+function initGames() {
+    renderGames();
+}
+
+function initBetModal() {
+    // Configurar modal de apuesta
+    document.getElementById('modal-bet-close')?.addEventListener('click', closeBetModal);
+    document.getElementById('modal-bet')?.addEventListener('click', (e) => {
+        if (e.target.id === 'modal-bet') closeBetModal();
+    });
+    
+    // Configurar opciones de apuesta
+    document.querySelectorAll('.bet-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            selectBetAmount(parseInt(btn.dataset.amount));
+        });
+    });
+    
+    // Input personalizado de apuesta
+    document.getElementById('bet-custom-input')?.addEventListener('input', (e) => {
+        const amount = parseFloat(e.target.value) || 0;
+        if (amount > 0) {
+            selectBetAmount(amount);
+        }
+    });
+    
+    // Botón de iniciar matchmaking
+    document.getElementById('btn-start-matchmaking')?.addEventListener('click', () => {
+        closeBetModal();
+        startMatchmaking(state.selectedGame, state.selectedBet);
+    });
+}
+
+function initMatchmaking() {
+    // Botón de cancelar matchmaking
+    document.getElementById('btn-cancel-matchmaking')?.addEventListener('click', cancelMatchmaking);
+    
+    // Botones de resultado
+    document.getElementById('btn-play-again')?.addEventListener('click', () => {
+        openBetModal(state.selectedGame);
+    });
+    
+    document.getElementById('btn-back-lobby')?.addEventListener('click', () => {
+        navigateTo('lobby');
+    });
+}
+
+function updateBalanceDisplay() {
+    updateWallet();
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // Ocultar loader

@@ -875,12 +875,14 @@ class LedgerEntry:
     # Partes involucradas
     debitor_id: str         # Quien pierde/paga
     creditor_id: str        # Quien gana/recibe
-    treasury_id: str = "LK_TREASURY"
     
-    # Montos
+    # Montos (requeridos, sin valor por defecto)
     debit_amount: Decimal   # Monto debitado del perdedor
     credit_amount: Decimal  # Monto acreditado al ganador (después de rake)
     rake_amount: Decimal    # Monto de comisión al Treasury
+    
+    # Treasury con valor por defecto
+    treasury_id: str = "LK_TREASURY"
     
     # Hashes de integridad
     debitor_balance_hash_before: str = ""

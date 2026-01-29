@@ -56,8 +56,22 @@ const LudoConfig = {
 // =============================================================================
 
 class LudoBoard {
-    constructor(canvasId) {
-        this.canvas = document.getElementById(canvasId);
+    /**
+     * Constructor del tablero
+     * @param {string|HTMLCanvasElement} canvasOrId - ID del canvas o elemento canvas
+     */
+    constructor(canvasOrId) {
+        // Aceptar tanto un ID (string) como un elemento canvas directamente
+        if (typeof canvasOrId === 'string') {
+            this.canvas = document.getElementById(canvasOrId);
+        } else {
+            this.canvas = canvasOrId;
+        }
+        
+        if (!this.canvas) {
+            throw new Error('Canvas no encontrado');
+        }
+        
         this.ctx = this.canvas.getContext('2d');
         
         // Estado del juego (sincronizado con servidor)
@@ -109,51 +123,57 @@ class LudoBoard {
         const offset = LudoConfig.BOARD_PADDING;
         
         // El tablero de Ludo tiene 52 casillas en el circuito principal
-        // Estructura: forma de cruz con casillas en los bordes
+        // Las casas ocupan 6x6 celdas en cada esquina
+        // El camino tiene 3 filas/columnas de ancho en el medio
         
-        // Generar posiciones del circuito principal (simplificado)
-        // En un Ludo real, esto sería más complejo
+        // Generar posiciones del camino principal
+        // Usando un enfoque más simple: definir las 52 posiciones manualmente
         this.cellPositions = [];
         
-        // Casillas del perímetro (simplificado para 52 posiciones)
-        for (let i = 0; i < 52; i++) {
-            const segment = Math.floor(i / 13);
-            const pos = i % 13;
-            
-            let x, y;
-            switch (segment) {
-                case 0: // Superior (derecha a izquierda)
-                    x = 14 - pos;
-                    y = 6;
-                    break;
-                case 1: // Izquierda (arriba a abajo)
-                    x = 0;
-                    y = 6 + pos;
-                    break;
-                case 2: // Inferior (izquierda a derecha)
-                    x = pos;
-                    y = 14;
-                    break;
-                case 3: // Derecha (abajo a arriba)
-                    x = 14;
-                    y = 14 - pos;
-                    break;
-            }
-            
-            this.cellPositions.push({
-                x: offset + x * cs + cs / 2,
-                y: offset + y * cs + cs / 2,
-                index: i
-            });
-        }
+        // El camino rodea el tablero en forma de cruz
+        // Empezamos en la posición de salida del ROJO (columna 6, fila 1)
         
-        // Posiciones de las casas (esquinas)
+        const pathCoords = [];
+        
+        // Segmento 1: Columna 6, filas 0-5 (brazo superior, lado izquierdo)
+        for (let i = 0; i < 6; i++) pathCoords.push({x: 6, y: i});
+        // Segmento 2: Fila 6, columnas 5-0 (brazo izquierdo, lado superior)  
+        for (let i = 5; i >= 0; i--) pathCoords.push({x: i, y: 6});
+        // Segmento 3: Columna 0-5, fila 7 (entrada verde)
+        pathCoords.push({x: 0, y: 7});
+        // Segmento 4: Fila 8, columnas 0-5 (brazo izquierdo, lado inferior)
+        for (let i = 0; i < 6; i++) pathCoords.push({x: i, y: 8});
+        // Segmento 5: Columna 6, filas 9-14 (brazo inferior, lado izquierdo)
+        for (let i = 9; i < 15; i++) pathCoords.push({x: 6, y: i});
+        // Segmento 6: Fila 14, entrada amarilla
+        pathCoords.push({x: 7, y: 14});
+        // Segmento 7: Columna 8, filas 14-9 (brazo inferior, lado derecho)
+        for (let i = 14; i >= 9; i--) pathCoords.push({x: 8, y: i});
+        // Segmento 8: Fila 8, columnas 9-14 (brazo derecho, lado inferior)
+        for (let i = 9; i < 15; i++) pathCoords.push({x: i, y: 8});
+        // Segmento 9: Columna 14, entrada azul
+        pathCoords.push({x: 14, y: 7});
+        // Segmento 10: Fila 6, columnas 14-9 (brazo derecho, lado superior)
+        for (let i = 14; i >= 9; i--) pathCoords.push({x: i, y: 6});
+        // Segmento 11: Columna 8, filas 5-0 (brazo superior, lado derecho)
+        for (let i = 5; i >= 0; i--) pathCoords.push({x: 8, y: i});
+        // Segmento 12: Fila 0, entrada roja (vuelve al inicio)
+        pathCoords.push({x: 7, y: 0});
+        
+        // Convertir a posiciones de canvas (solo las primeras 52)
+        this.cellPositions = pathCoords.slice(0, 52).map((pos, i) => ({
+            x: offset + pos.x * cs + cs / 2,
+            y: offset + pos.y * cs + cs / 2,
+            index: i
+        }));
+        
+        // Posiciones de las casas (esquinas) - cada casa ocupa 6x6 celdas
         const homeSize = cs * 6;
         this.homePositions = {
             RED: { x: offset, y: offset, color: LudoConfig.COLORS.RED },
             BLUE: { x: offset + cs * 9, y: offset, color: LudoConfig.COLORS.BLUE },
-            YELLOW: { x: offset + cs * 9, y: offset + cs * 9, color: LudoConfig.COLORS.YELLOW },
             GREEN: { x: offset, y: offset + cs * 9, color: LudoConfig.COLORS.GREEN },
+            YELLOW: { x: offset + cs * 9, y: offset + cs * 9, color: LudoConfig.COLORS.YELLOW },
         };
         
         // Posiciones de las zonas de llegada (centro)
@@ -717,14 +737,34 @@ class LudoBoard {
 // =============================================================================
 
 class LudoGameController {
-    constructor(socket, board) {
+    /**
+     * Constructor del controlador de Ludo
+     * @param {string} canvasId - ID del elemento canvas
+     * @param {object} socket - Instancia de Socket.IO
+     * @param {string} matchId - ID de la partida (opcional)
+     */
+    constructor(canvasId, socket, matchId = null) {
+        // Verificar que el socket es válido
+        if (!socket || typeof socket.on !== 'function') {
+            console.error('[LUDO] Socket inválido recibido:', socket);
+            throw new Error('Socket.IO inválido');
+        }
+        
         this.socket = socket;
-        this.board = board;
-        this.matchId = null;
+        this.matchId = matchId;
         this.myUserId = null;
+        
+        // Crear el board a partir del canvas ID
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) {
+            throw new Error(`Canvas con ID "${canvasId}" no encontrado`);
+        }
+        this.board = new LudoBoard(canvas);
         
         this._setupSocketListeners();
         this._setupBoardCallbacks();
+        
+        console.log('[LUDO] Controlador inicializado para partida:', matchId);
     }
     
     _setupSocketListeners() {
@@ -809,6 +849,11 @@ class LudoGameController {
             match_id: this.matchId,
             client_seed: clientSeed
         });
+    }
+    
+    // Alias para compatibilidad con app.js
+    requestDiceRoll() {
+        this.rollDice();
     }
     
     movePiece(pieceId) {

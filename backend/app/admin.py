@@ -166,7 +166,7 @@ async def get_admin_stats(
 
 @router.get("/deposits")
 async def list_deposits(
-    status: Optional[str] = Query(None, regex="^(PENDING|APPROVED|REJECTED)$"),
+    status: Optional[str] = Query(None, pattern="^(PENDING|APPROVED|REJECTED)$"),
     date: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
@@ -355,7 +355,7 @@ async def reject_deposit(
 @router.get("/users")
 async def list_users(
     search: Optional[str] = Query(None),
-    trust_level: Optional[str] = Query(None, regex="^(GREEN|YELLOW|RED)$"),
+    trust_level: Optional[str] = Query(None, pattern="^(GREEN|YELLOW|RED)$"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     admin = Depends(get_current_admin),
@@ -507,6 +507,7 @@ async def regenerate_webhook_key(
 # =============================================================================
 
 webhook_router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+wallet_router = APIRouter(prefix="/wallet", tags=["Wallet"])
 
 
 async def verify_webhook_api_key(
@@ -660,7 +661,7 @@ async def analyze_deposit_image(
 class WithdrawalRequest(BaseModel):
     """Request para solicitud de retiro."""
     amount: Decimal = Field(..., ge=5, description="Monto mínimo 5 LKoins")
-    method: str = Field(..., regex="^(YAPE|PLIN|BANK_TRANSFER)$")
+    method: str = Field(..., pattern="^(YAPE|PLIN|BANK_TRANSFER)$")
     destination: str = Field(..., min_length=9, max_length=20)
 
 
@@ -679,7 +680,7 @@ class WithdrawalResponse(BaseModel):
 
 @router.get("/cajero")
 async def get_withdrawal_queue(
-    status: Optional[str] = Query("PENDING", regex="^(PENDING|PROCESSING|COMPLETED|REJECTED)$"),
+    status: Optional[str] = Query("PENDING", pattern="^(PENDING|PROCESSING|COMPLETED|REJECTED)$"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     admin = Depends(get_current_admin),
@@ -745,7 +746,7 @@ async def get_withdrawal_queue(
 @router.post("/cajero/{ticket_id}/process")
 async def process_withdrawal(
     ticket_id: str,
-    action: str = Query(..., regex="^(complete|reject)$"),
+    action: str = Query(..., pattern="^(complete|reject)$"),
     rejection_reason: Optional[str] = Query(None),
     admin = Depends(get_current_admin),
 ):
