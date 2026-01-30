@@ -81,7 +81,7 @@ const CONFIG = {
   PORT: 8000,
   HTTPS_PORT: 8443,
   HOST: '0.0.0.0',
-  PUBLIC_IP: '179.7.80.126',
+  PUBLIC_IP: '194.113.194.85',
   TITULAR: 'Yordy Jesús Rojas Baldeon',
   RAKE_PERCENTAGE: 0.08,
   SOFT_LOCK_AMOUNT: 5,
