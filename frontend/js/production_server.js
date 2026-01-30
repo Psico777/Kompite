@@ -2,7 +2,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * KOMPITE PRODUCTION SERVER - MVP RELEASE
  * ═══════════════════════════════════════════════════════════════════════════
- * IP: 179.7.80.126:8000
+ * IP: 194.113.194.85:8000
  * 6-Game Ecosystem with Mobile-First Architecture
  * Titular: Yordy Jesús Rojas Baldeon
  * 
@@ -28,7 +28,7 @@ const server = http.createServer(app);
 const CONFIG = {
   PORT: 8000,
   HOST: '0.0.0.0',
-  PUBLIC_IP: '179.7.80.126',
+  PUBLIC_IP: '194.113.194.85',
   TITULAR: 'Yordy Jesús Rojas Baldeon',
   RAKE_PERCENTAGE: 0.08,
   SOFT_LOCK_AMOUNT: 5,

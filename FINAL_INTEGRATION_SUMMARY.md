@@ -2,7 +2,7 @@
 
 **Project Scope:** Complete skill-based gaming ecosystem with 6 integrated game engines  
 **Architecture:** 5-Layer Security Model + Server-Authoritative Physics  
-**Backend Infrastructure:** 179.7.80.126:8000 (Single Source of Truth)  
+**Backend Infrastructure:** 194.113.194.85:8000 (Single Source of Truth)  
 **Total Production Code:** ~5,620 LOC  
 **Titular:** Yordy Jesús Rojas Baldeon  
 
@@ -76,7 +76,7 @@ if (playerScore < opponentScore) {
 ## 🏗️ ARQUITECTURA: 5-LAYER SECURITY MODEL
 
 ### Layer 1: Network Connectivity
-- **Endpoint:** 179.7.80.126:8000
+- **Endpoint:** 194.113.194.85:8000
 - **Protocol:** Socket.io WebSocket
 - **Auth:** userId + authToken handshake
 
@@ -182,7 +182,7 @@ Titular: Yordy Jesús Rojas Baldeon
 - tx_metadata con titular Yordy Jesús Rojas Baldeon
 
 ### 🌐 Infraestructura
-- VPS: 179.7.80.126:8000
+- VPS: 194.113.194.85:8000
 - Socket.io para todos los juegos
 - Configuración externa via JSON
 - Modular y escalable
@@ -234,7 +234,7 @@ frontend/js/games/
 **Fecha:** 30 Enero 2026  
 **Estado:** ✅ LISTO PARA TESTING DE INTEGRACIÓN  
 **Próximos Pasos:**
-1. Verificar endpoints Kompite API (179.7.80.126:8000)
+1. Verificar endpoints Kompite API (194.113.194.85:8000)
 2. Testing con 2-4 jugadores concurrentes
 3. Security audit pre-producción
 4. Load testing (50+ usuarios)

@@ -65,7 +65,7 @@ Implementación:
 ```
 
 #### 5. ENDPOINTS VPS ✅
-Todos apuntan a `http://179.7.80.126:8000`:
+Todos apuntan a `http://194.113.194.85:8000`:
 
 ```
 POST /match/soft-lock
@@ -93,7 +93,7 @@ Parámetros editables sin código:
     "force": { "paddleMaxVelocity": 30, "puckInitialVelocity": 20 },
     "dimensions": { "tableWidth": 800, "tableHeight": 400, "puckRadius": 8 }
   },
-  "endpoints": { "api": "http://179.7.80.126:8000", ... }
+  "endpoints": { "api": "http://194.113.194.85:8000", ... }
 }
 ```
 
@@ -175,7 +175,7 @@ FIN (120s):
 
 ### 🚀 PRÓXIMOS PASOS (FUERA DE ALCANCE)
 
-- [ ] Deploy a VPS 179.7.80.126:3001
+- [ ] Deploy a VPS 194.113.194.85:3001
 - [ ] Testing de carga (50+ jugadores concurrentes)
 - [ ] Verificación de endpoints Kompite backend
 - [ ] Integración 3D (Three.js) si se requiere

@@ -38,7 +38,7 @@ PROTOCOLO IMPLEMENTADO: 100%
    • Ubicación: frontend/js/games/air_hockey/server/security_middleware.js
 
 5️⃣ ENDPOINTS VPS ✅
-   • API Base: http://179.7.80.126:8000
+   • API Base: http://194.113.194.85:8000
    • POST /match/soft-lock
    • POST /match/settlement
    • POST /match/validate-state
@@ -188,7 +188,7 @@ PARÁMETROS CONFIGURABLES (editar JSON):
     }
   },
   "endpoints": {
-    "api": "http://179.7.80.126:8000",
+    "api": "http://194.113.194.85:8000",
     "softLock": "/match/soft-lock",
     "settlement": "/match/settlement"
   }
@@ -222,7 +222,7 @@ VERIFICACIÓN FINAL:
 
 ✅ Security middleware (Balance + tx_metadata)
 
-✅ Endpoints VPS configurados (179.7.80.126:8000)
+✅ Endpoints VPS configurados (194.113.194.85:8000)
 
 ✅ Configuración externa (JSON editables)
 
@@ -231,9 +231,9 @@ VERIFICACIÓN FINAL:
 PRÓXIMAS ACCIONES:
 
 1. Deploy air_hockey_server.js a puerto 3001
-2. Verificar endpoints backend en 179.7.80.126:8000
+2. Verificar endpoints backend en 194.113.194.85:8000
 3. Testing de carga (50+ jugadores concurrentes)
-4. Configurar SSL/TLS para 179.7.80.126
+4. Configurar SSL/TLS para 194.113.194.85
 5. Monitoring de transacciones y ledger
 6. Validar tx_metadata en todas las transacciones
 

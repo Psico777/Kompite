@@ -1,6 +1,6 @@
 # 🎮 KOMPITE MVP - STATUS
 
-**VPS:** http://179.7.80.126:8000 | **Versión:** MVP-1.0.0 | **Titular:** Yordy Jesús Rojas Baldeon
+**VPS:** http://194.113.194.85:8000 | **Versión:** MVP-1.0.0 | **Titular:** Yordy Jesús Rojas Baldeon
 
 ---
 
@@ -82,7 +82,7 @@ Invoke-WebRequest "http://127.0.0.1:8000/health"
 ```
 
 ### 2. Test móvil
-- Abrir http://179.7.80.126:8000/ en celular
+- Abrir http://194.113.194.85:8000/ en celular
 - Verificar lobby y cada juego
 - Probar reconexión (apagar/encender datos)
 

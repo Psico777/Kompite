@@ -2,7 +2,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * KOMPITE PRODUCTION SERVER - GATILLAZO 2.0 ENTERPRISE EDITION
  * ═══════════════════════════════════════════════════════════════════════════
- * IP: 179.7.80.126:8000 (HTTP) / :8443 (HTTPS)
+ * IP: 194.113.194.85:8000 (HTTP) / :8443 (HTTPS)
  * 6-Game Ecosystem with Enterprise-Grade Security
  * Titular: Yordy Jesús Rojas Baldeon
  * 

@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 const GAMES = ['cabezones', 'air_hockey', 'artillery', 'duel', 'snowball', 'memoria'];
 const BASE_PATH = path.join(__dirname, 'js', 'games');
-const REQUIRED_ENDPOINT = 'http://179.7.80.126:8000';
+const REQUIRED_ENDPOINT = 'http://194.113.194.85:8000';
 const TITULAR = 'Yordy Jesús Rojas Baldeon';
 
 console.log('');
@@ -174,7 +174,7 @@ function validateProductionServer() {
   if (serverExists) {
     const code = fs.readFileSync(serverPath, 'utf8');
     
-    check(code.includes('179.7.80.126'), 'VPS IP configured');
+    check(code.includes('194.113.194.85'), 'VPS IP configured');
     check(code.includes('8000'), 'Port 8000 configured');
     check(code.includes('MobileReconnectionManager'), 'Mobile reconnection system');
     check(code.includes('softLock') || code.includes('SOFT_LOCK'), 'Soft Lock endpoint');
@@ -217,7 +217,7 @@ function validateLobby() {
     const html = fs.readFileSync(lobbyPath, 'utf8');
     
     check(html.includes('viewport'), 'Viewport meta tag');
-    check(html.includes('179.7.80.126:8000'), 'Production endpoint');
+    check(html.includes('194.113.194.85:8000'), 'Production endpoint');
     check(html.includes('cabezones') && html.includes('air_hockey'), 'Game cards present');
     check(html.includes('reconect') || html.includes('Reconect'), 'Reconnection UI');
     check(html.includes('socket.io'), 'Socket.io included');
@@ -256,7 +256,7 @@ if (failedChecks.length === 0) {
   console.log('╠═══════════════════════════════════════════════════════════╣');
   console.log('║  Next Steps:                                              ║');
   console.log('║  1. Run: node js/production_server.js                     ║');
-  console.log('║  2. Access: http://179.7.80.126:8000                      ║');
+  console.log('║  2. Access: http://194.113.194.85:8000                      ║');
   console.log('║  3. Test with Beta Testers                                ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
 } else {

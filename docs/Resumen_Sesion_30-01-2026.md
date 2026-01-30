@@ -247,7 +247,7 @@ Depósito → Matchmaking → Soft Lock → Juego → Liquidación → Rake → 
 
 1. **kompite_integration.js** (375 líneas)
    - Soft Lock: Bloqueo atómico de balances en ESCROW
-   - Matchmaking: Conexión con backend Kompite (179.7.80.126:8000)
+   - Matchmaking: Conexión con backend Kompite (194.113.194.85:8000)
    - Settlement: Liquidación con Rake 8% (Nivel Semilla)
    - Ledger Recording: tx_metadata inmutable
 

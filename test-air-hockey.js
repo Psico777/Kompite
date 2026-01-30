@@ -120,10 +120,10 @@ try {
 console.log('✓ Test 8: VPS Endpoints');
 try {
   const config = require('./frontend/js/games/air_hockey/config/air_hockey_assets.json');
-  assert(config.endpoints.api === 'http://179.7.80.126:8000');
+  assert(config.endpoints.api === 'http://194.113.194.85:8000');
   assert(config.endpoints.softLock === '/match/soft-lock');
   assert(config.endpoints.settlement === '/match/settlement');
-  console.log('  ✓ API: 179.7.80.126:8000');
+  console.log('  ✓ API: 194.113.194.85:8000');
   console.log('  ✓ /match/soft-lock: CONFIGURED');
   console.log('  ✓ /match/settlement: CONFIGURED\n');
 } catch (err) {
@@ -140,7 +140,7 @@ console.log('  ✓ Limpieza de interfaz (Penales/Tiro/Memoria removidos)');
 console.log('  ✓ Física autoritaria (Server-side PhysicsEngine)');
 console.log('  ✓ Soft Lock + Rake 8% (Economía integrada)');
 console.log('  ✓ Security middleware + tx_metadata');
-console.log('  ✓ Endpoints VPS 179.7.80.126:8000');
+console.log('  ✓ Endpoints VPS 194.113.194.85:8000');
 console.log('  ✓ Config externa (air_hockey_assets.json)\n');
 
 console.log('Endpoints requeridos en backend:');

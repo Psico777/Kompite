@@ -22,3 +22,7 @@
 {"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 19:06:53.634","titular":"Yordy Jesús Rojas Baldeon"}
 {"level":"warn","message":"DATABASE_URL not set - using in-memory storage (data will be lost on restart)","service":"kompite-mvp","timestamp":"2026-01-30 19:07:17.222","titular":"Yordy Jesús Rojas Baldeon"}
 {"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 19:07:17.262","titular":"Yordy Jesús Rojas Baldeon"}
+{"level":"warn","message":"DATABASE_URL not set - using in-memory storage (data will be lost on restart)","service":"kompite-mvp","timestamp":"2026-01-30 19:08:16.444","titular":"Yordy Jesús Rojas Baldeon"}
+{"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 19:08:16.486","titular":"Yordy Jesús Rojas Baldeon"}
+{"action":"SOCKET_ANON","level":"warn","message":"Anonymous socket connection","service":"kompite-mvp","socketId":"MeShLcPNhCkM2ULuAAAB","timestamp":"2026-01-30 19:10:32.540","titular":"Yordy Jesús Rojas Baldeon"}
+{"action":"SOCKET_ANON","level":"warn","message":"Anonymous socket connection","service":"kompite-mvp","socketId":"DgkeFLs9lMBVRqOCAAAF","timestamp":"2026-01-30 19:12:20.743","titular":"Yordy Jesús Rojas Baldeon"}
