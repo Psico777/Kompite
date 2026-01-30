@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Snowball Fight - Kompite</title>
+  <link rel="stylesheet" href="/css/mobile-first.css">
+  <style>
+    .game-canvas { width: 100%; height: 60vh; background: linear-gradient(180deg, #a8d8ff, #e8f4ff 40%, #fff 100%); border-radius: 12px; position: relative; overflow: hidden; }
+    .snow-ground { position: absolute; bottom: 0; width: 100%; height: 30%; background: #fff; }
+    .player { width: 50px; height: 70px; position: absolute; bottom: 30%; }
+    .player.me { left: 15%; background: #3498db; border-radius: 50% 50% 30% 30%; }
+    .player.enemy { right: 15%; background: #e74c3c; border-radius: 50% 50% 30% 30%; }
+    .snowball { width: 20px; height: 20px; background: radial-gradient(#fff, #ddd); border-radius: 50%; position: absolute; display: none; }
+    .freeze-bar { width: 80%; height: 20px; margin: 10px auto; background: #333; border-radius: 10px; overflow: hidden; }
+    .freeze-fill { height: 100%; background: linear-gradient(90deg, #3498db, #9b59b6); width: 0%; transition: width 0.3s; }
+  </style>
+</head>
+<body>
+  <header class="game-header">
+    <a href="/" class="back-btn">← Lobby</a>
+    <h1>❄️ Snowball Fight</h1>
+    <div class="connection-status" id="connStatus">Conectando...</div>
+  </header>
+
+  <main class="game-container">
+    <div class="score-display" style="font-size:28px;padding:10px;">
+      <span id="p1Score">0</span> hits - <span id="p2Score">0</span> hits
+    </div>
+    
+    <div class="freeze-bar">
+      <div class="freeze-fill" id="freezeFill"></div>
+    </div>
+    <p style="text-align:center;font-size:14px;margin:5px;">Freeze: <span id="freezeStatus">Normal</span></p>
+    
+    <div class="game-canvas" id="gameCanvas">
+      <div class="snow-ground"></div>
+      <div class="player me" id="myPlayer"></div>
+      <div class="player enemy" id="enemyPlayer"></div>
+      <div class="snowball" id="snowball"></div>
+    </div>
+    
+    <div class="controls-container">
+      <div class="joystick-zone" id="joystick"></div>
+      <button class="action-btn action-btn-lg" id="throwBtn">❄️ LANZAR</button>
+      <button class="action-btn" id="duckBtn">⬇️ AGACHAR</button>
+    </div>
+  </main>
+
+  <div class="reconnection-overlay" id="reconnectOverlay" style="display:none;">
+    <div class="reconnection-modal">
+      <div class="spinner"></div>
+      <h2>Reconectando...</h2>
+      <p>Tiempo restante: <span id="reconnectTimer">30</span>s</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const GAME_TYPE = 'snowball';
+    const SERVER = 'http://179.7.80.126:8000';
+    const userId = 'user_' + Date.now();
+    const authToken = 'token_' + Math.random().toString(36).substr(2);
+    
+    const socket = io(SERVER, {
+      auth: { userId, authToken, gameType: GAME_TYPE },
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      document.getElementById('connStatus').textContent = '🟢 Conectado';
+      document.getElementById('reconnectOverlay').style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connStatus').textContent = '🔴 Desconectado';
+      document.getElementById('reconnectOverlay').style.display = 'flex';
+    });
+
+    socket.on('gameState', (state) => {
+      document.getElementById('p1Score').textContent = state.myHits || 0;
+      document.getElementById('p2Score').textContent = state.enemyHits || 0;
+      document.getElementById('freezeFill').style.width = (state.freezeLevel || 0) + '%';
+      document.getElementById('freezeStatus').textContent = state.frozen ? '¡CONGELADO!' : 'Normal';
+    });
+
+    socket.on('hit', () => {
+      document.getElementById('myPlayer').style.background = '#fff';
+      setTimeout(() => document.getElementById('myPlayer').style.background = '#3498db', 300);
+    });
+
+    // Controls
+    document.getElementById('throwBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      socket.emit('action', { type: 'throw' });
+    });
+
+    document.getElementById('duckBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      socket.emit('action', { type: 'duck' });
+      document.getElementById('myPlayer').style.height = '35px';
+    });
+
+    document.getElementById('duckBtn').addEventListener('touchend', () => {
+      socket.emit('action', { type: 'stand' });
+      document.getElementById('myPlayer').style.height = '70px';
+    });
+
+    // Joystick
+    const joystick = document.getElementById('joystick');
+    joystick.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const rect = joystick.getBoundingClientRect();
+      const x = (e.touches[0].clientX - rect.left - rect.width/2) / (rect.width/2);
+      socket.emit('move', { dx: x });
+    });
+  </script>
+</body>
+</html>

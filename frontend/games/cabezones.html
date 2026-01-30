@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Cabezones - Kompite</title>
+  <link rel="stylesheet" href="/css/mobile-first.css">
+  <style>
+    .game-canvas { width: 100%; height: 60vh; background: linear-gradient(135deg, #1a472a, #2d5016); border-radius: 12px; }
+    .player { position: absolute; width: 60px; height: 80px; }
+    .ball { position: absolute; width: 30px; height: 30px; background: #fff; border-radius: 50%; }
+    .goal { position: absolute; width: 10px; height: 120px; background: rgba(255,255,255,0.3); }
+    .score-display { font-size: 48px; font-weight: bold; text-align: center; padding: 20px; }
+  </style>
+</head>
+<body>
+  <header class="game-header">
+    <a href="/" class="back-btn">← Lobby</a>
+    <h1>⚽ Cabezones</h1>
+    <div class="connection-status" id="connStatus">Conectando...</div>
+  </header>
+
+  <main class="game-container">
+    <div class="score-display">
+      <span id="p1Score">0</span> - <span id="p2Score">0</span>
+    </div>
+    <div class="game-canvas" id="gameCanvas">
+      <canvas id="canvas" width="1024" height="576"></canvas>
+    </div>
+    
+    <div class="controls-container">
+      <div class="joystick-zone" id="joystickLeft"></div>
+      <button class="action-btn action-btn-lg" id="jumpBtn">SALTAR</button>
+      <button class="action-btn" id="kickBtn">PATEAR</button>
+    </div>
+  </main>
+
+  <div class="reconnection-overlay" id="reconnectOverlay" style="display:none;">
+    <div class="reconnection-modal">
+      <div class="spinner"></div>
+      <h2>Reconectando...</h2>
+      <p>Tiempo restante: <span id="reconnectTimer">30</span>s</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const GAME_TYPE = 'cabezones';
+    const SERVER = 'http://179.7.80.126:8000';
+    
+    // User data (would come from auth)
+    const userId = 'user_' + Date.now();
+    const authToken = 'token_' + Math.random().toString(36).substr(2);
+    
+    const socket = io(SERVER, {
+      auth: { userId, authToken, gameType: GAME_TYPE },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000
+    });
+
+    socket.on('connect', () => {
+      document.getElementById('connStatus').textContent = '🟢 Conectado';
+      document.getElementById('connStatus').classList.add('connected');
+      document.getElementById('reconnectOverlay').style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connStatus').textContent = '🔴 Desconectado';
+      document.getElementById('connStatus').classList.remove('connected');
+      document.getElementById('reconnectOverlay').style.display = 'flex';
+      startReconnectTimer();
+    });
+
+    socket.on('authenticated', (data) => {
+      console.log('Autenticado:', data);
+    });
+
+    socket.on('gameState', (state) => {
+      document.getElementById('p1Score').textContent = state.p1Score || 0;
+      document.getElementById('p2Score').textContent = state.p2Score || 0;
+    });
+
+    function startReconnectTimer() {
+      let time = 30;
+      const timer = setInterval(() => {
+        time--;
+        document.getElementById('reconnectTimer').textContent = time;
+        if (time <= 0 || socket.connected) clearInterval(timer);
+      }, 1000);
+    }
+
+    // Touch Controls
+    document.getElementById('jumpBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      socket.emit('playerInput', { action: 'jump' });
+    });
+
+    document.getElementById('kickBtn').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      socket.emit('playerInput', { action: 'kick' });
+    });
+
+    // Joystick simulation
+    let joystickActive = false;
+    const joystick = document.getElementById('joystickLeft');
+    joystick.addEventListener('touchstart', () => joystickActive = true);
+    joystick.addEventListener('touchend', () => {
+      joystickActive = false;
+      socket.emit('playerInput', { action: 'move', dx: 0 });
+    });
+    joystick.addEventListener('touchmove', (e) => {
+      if (!joystickActive) return;
+      const rect = joystick.getBoundingClientRect();
+      const x = e.touches[0].clientX - rect.left - rect.width/2;
+      socket.emit('playerInput', { action: 'move', dx: x / (rect.width/2) });
+    });
+  </script>
+</body>
+</html>

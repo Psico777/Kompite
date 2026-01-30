@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Duel - Kompite</title>
+  <link rel="stylesheet" href="/css/mobile-first.css">
+  <style>
+    .game-canvas { width: 100%; height: 55vh; background: linear-gradient(180deg, #2c1810, #1a0f0a); border-radius: 12px; display: flex; justify-content: space-around; align-items: center; }
+    .fighter { width: 100px; height: 150px; display: flex; flex-direction: column; align-items: center; }
+    .fighter-body { width: 80px; height: 80px; background: radial-gradient(#ff6b6b, #c0392b); border-radius: 50%; margin-bottom: 10px; }
+    .fighter.opponent .fighter-body { background: radial-gradient(#5dade2, #2980b9); }
+    .hp-bar { width: 100%; height: 15px; background: #333; border-radius: 8px; overflow: hidden; }
+    .hp-fill { height: 100%; background: linear-gradient(90deg, #f00, #0f0); transition: width 0.3s; }
+    .combo-display { font-size: 32px; text-align: center; padding: 10px; color: #ffd700; }
+  </style>
+</head>
+<body>
+  <header class="game-header">
+    <a href="/" class="back-btn">← Lobby</a>
+    <h1>👊 Duel</h1>
+    <div class="connection-status" id="connStatus">Conectando...</div>
+  </header>
+
+  <main class="game-container">
+    <div class="combo-display">Combo: <span id="combo">0</span>x</div>
+    
+    <div class="game-canvas" id="gameCanvas">
+      <div class="fighter player">
+        <div class="fighter-body" id="playerBody"></div>
+        <div class="hp-bar"><div class="hp-fill" id="playerHP" style="width:100%"></div></div>
+        <span style="margin-top:5px;">TÚ</span>
+      </div>
+      <div class="fighter opponent">
+        <div class="fighter-body" id="opponentBody"></div>
+        <div class="hp-bar"><div class="hp-fill" id="opponentHP" style="width:100%"></div></div>
+        <span style="margin-top:5px;">RIVAL</span>
+      </div>
+    </div>
+    
+    <div class="controls-container" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <button class="action-btn" id="punchBtn">👊 GOLPE</button>
+      <button class="action-btn action-btn-lg" id="blockBtn">🛡️ BLOQUEAR</button>
+      <button class="action-btn" id="kickBtn">🦵 PATADA</button>
+      <button class="action-btn" id="jabBtn">⚡ JAB</button>
+      <button class="action-btn action-btn-lg" id="upperBtn">💥 UPPER</button>
+      <button class="action-btn" id="dodgeBtn">💨 ESQUIVAR</button>
+    </div>
+  </main>
+
+  <div class="reconnection-overlay" id="reconnectOverlay" style="display:none;">
+    <div class="reconnection-modal">
+      <div class="spinner"></div>
+      <h2>Reconectando...</h2>
+      <p>Tiempo restante: <span id="reconnectTimer">30</span>s</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const GAME_TYPE = 'duel';
+    const SERVER = 'http://179.7.80.126:8000';
+    const userId = 'user_' + Date.now();
+    const authToken = 'token_' + Math.random().toString(36).substr(2);
+    
+    const socket = io(SERVER, {
+      auth: { userId, authToken, gameType: GAME_TYPE },
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      document.getElementById('connStatus').textContent = '🟢 Conectado';
+      document.getElementById('reconnectOverlay').style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connStatus').textContent = '🔴 Desconectado';
+      document.getElementById('reconnectOverlay').style.display = 'flex';
+    });
+
+    socket.on('gameState', (state) => {
+      document.getElementById('playerHP').style.width = (state.myHP || 100) + '%';
+      document.getElementById('opponentHP').style.width = (state.opponentHP || 100) + '%';
+      document.getElementById('combo').textContent = state.combo || 0;
+    });
+
+    socket.on('hit', (data) => {
+      const target = data.target === 'player' ? 'playerBody' : 'opponentBody';
+      document.getElementById(target).style.transform = 'scale(0.9)';
+      setTimeout(() => document.getElementById(target).style.transform = 'scale(1)', 100);
+    });
+
+    // Action buttons
+    const actions = ['punch', 'block', 'kick', 'jab', 'upper', 'dodge'];
+    actions.forEach(action => {
+      const btn = document.getElementById(action + 'Btn');
+      if (btn) {
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          socket.emit('action', { type: action });
+          btn.style.transform = 'scale(0.9)';
+        });
+        btn.addEventListener('touchend', () => {
+          btn.style.transform = 'scale(1)';
+        });
+      }
+    });
+  </script>
+</body>
+</html>

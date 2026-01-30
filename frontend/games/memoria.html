@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Memoria - Kompite</title>
+  <link rel="stylesheet" href="/css/mobile-first.css">
+  <style>
+    .memory-grid { display: grid; gap: 8px; padding: 15px; justify-content: center; }
+    .grid-4x4 { grid-template-columns: repeat(4, 1fr); max-width: 400px; margin: 0 auto; }
+    .memory-card { aspect-ratio: 1; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 36px; cursor: pointer; transition: transform 0.3s, background 0.3s; min-width: 70px; min-height: 70px; }
+    .memory-card.flipped { background: linear-gradient(135deg, #f5f7fa, #c3cfe2); transform: rotateY(180deg); }
+    .memory-card.matched { background: linear-gradient(135deg, #11998e, #38ef7d); pointer-events: none; }
+    .memory-card .card-back { display: block; }
+    .memory-card.flipped .card-back { display: none; }
+    .memory-card .card-front { display: none; }
+    .memory-card.flipped .card-front { display: block; }
+    .turn-indicator { text-align: center; padding: 15px; font-size: 20px; background: rgba(0,0,0,0.3); border-radius: 10px; margin: 10px; }
+    .turn-indicator.my-turn { background: rgba(46, 204, 113, 0.4); }
+  </style>
+</head>
+<body>
+  <header class="game-header">
+    <a href="/" class="back-btn">← Lobby</a>
+    <h1>🧠 Memoria</h1>
+    <div class="connection-status" id="connStatus">Conectando...</div>
+  </header>
+
+  <main class="game-container">
+    <div class="score-display" style="font-size:24px;padding:10px;">
+      Tú: <span id="myScore">0</span> | Rival: <span id="opponentScore">0</span>
+    </div>
+    
+    <div class="turn-indicator" id="turnIndicator">Esperando turno...</div>
+    
+    <div class="memory-grid grid-4x4" id="memoryGrid">
+      <!-- Cards generated dynamically -->
+    </div>
+    
+    <div style="text-align:center;padding:15px;color:#888;">
+      ⚠️ El tablero es generado server-side (Anti-Cheat)
+    </div>
+  </main>
+
+  <div class="reconnection-overlay" id="reconnectOverlay" style="display:none;">
+    <div class="reconnection-modal">
+      <div class="spinner"></div>
+      <h2>Reconectando...</h2>
+      <p>Tiempo restante: <span id="reconnectTimer">30</span>s</p>
+      <p style="color:#ff6b6b;">⚠️ Penalización por Rage Quit: -15 Trust</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const GAME_TYPE = 'memoria';
+    const SERVER = 'http://179.7.80.126:8000';
+    const userId = 'user_' + Date.now();
+    const authToken = 'token_' + Math.random().toString(36).substr(2);
+    
+    let myTurn = false;
+    let firstCard = null;
+    
+    const socket = io(SERVER, {
+      auth: { userId, authToken, gameType: GAME_TYPE },
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      document.getElementById('connStatus').textContent = '🟢 Conectado';
+      document.getElementById('reconnectOverlay').style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connStatus').textContent = '🔴 Desconectado';
+      document.getElementById('reconnectOverlay').style.display = 'flex';
+    });
+
+    socket.on('gameInit', (data) => {
+      // Server sends board SIZE only, not positions
+      const grid = document.getElementById('memoryGrid');
+      grid.innerHTML = '';
+      for (let i = 0; i < data.totalCards; i++) {
+        const card = document.createElement('div');
+        card.className = 'memory-card';
+        card.dataset.index = i;
+        card.innerHTML = '<span class="card-back">❓</span><span class="card-front"></span>';
+        card.addEventListener('click', () => flipCard(i));
+        grid.appendChild(card);
+      }
+    });
+
+    socket.on('turnUpdate', (data) => {
+      myTurn = data.isMyTurn;
+      const indicator = document.getElementById('turnIndicator');
+      indicator.textContent = myTurn ? '🟢 TU TURNO' : '⏳ Turno del rival';
+      indicator.classList.toggle('my-turn', myTurn);
+    });
+
+    socket.on('cardFlipped', (data) => {
+      const card = document.querySelector(`[data-index="${data.index}"]`);
+      if (card) {
+        card.classList.add('flipped');
+        card.querySelector('.card-front').textContent = data.symbol;
+      }
+    });
+
+    socket.on('cardsMatched', (data) => {
+      data.indices.forEach(idx => {
+        const card = document.querySelector(`[data-index="${idx}"]`);
+        if (card) card.classList.add('matched');
+      });
+      document.getElementById('myScore').textContent = data.myScore;
+      document.getElementById('opponentScore').textContent = data.opponentScore;
+    });
+
+    socket.on('cardsHidden', (data) => {
+      data.indices.forEach(idx => {
+        const card = document.querySelector(`[data-index="${idx}"]`);
+        if (card) {
+          card.classList.remove('flipped');
+          card.querySelector('.card-front').textContent = '';
+        }
+      });
+    });
+
+    socket.on('gameEnd', (data) => {
+      const msg = data.winner === userId ? '🎉 ¡GANASTE!' : '😔 Perdiste';
+      alert(`${msg}\nTu puntuación: ${data.myScore}\nRival: ${data.opponentScore}`);
+    });
+
+    function flipCard(index) {
+      if (!myTurn) return;
+      const card = document.querySelector(`[data-index="${index}"]`);
+      if (card.classList.contains('flipped') || card.classList.contains('matched')) return;
+      
+      socket.emit('flipCard', { index });
+    }
+  </script>
+</body>
+</html>

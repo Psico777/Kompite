@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Air Hockey - Kompite</title>
+  <link rel="stylesheet" href="/css/mobile-first.css">
+  <style>
+    .game-canvas { width: 100%; height: 65vh; background: linear-gradient(180deg, #1a1a2e, #16213e); border-radius: 12px; position: relative; overflow: hidden; }
+    .table-surface { width: 90%; height: 90%; margin: 5%; background: #0a1628; border: 4px solid #4a90d9; border-radius: 20px; position: relative; }
+    .center-line { position: absolute; top: 0; left: 50%; width: 2px; height: 100%; background: rgba(255,255,255,0.3); }
+    .puck { width: 40px; height: 40px; background: radial-gradient(#ff0, #f80); border-radius: 50%; position: absolute; }
+    .paddle { width: 70px; height: 70px; background: radial-gradient(#4a90d9, #2d5aa0); border-radius: 50%; position: absolute; border: 3px solid #fff; }
+  </style>
+</head>
+<body>
+  <header class="game-header">
+    <a href="/" class="back-btn">← Lobby</a>
+    <h1>🏒 Air Hockey</h1>
+    <div class="connection-status" id="connStatus">Conectando...</div>
+  </header>
+
+  <main class="game-container">
+    <div class="score-display" style="font-size:36px;padding:15px;">
+      <span id="p1Score">0</span> - <span id="p2Score">0</span>
+    </div>
+    <div class="game-canvas" id="gameCanvas">
+      <div class="table-surface">
+        <div class="center-line"></div>
+        <div class="puck" id="puck" style="top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+        <div class="paddle" id="myPaddle" style="bottom:10%;left:50%;transform:translateX(-50%);"></div>
+      </div>
+    </div>
+    
+    <div class="controls-container">
+      <div class="touch-area" id="touchArea" style="width:100%;height:150px;background:rgba(255,255,255,0.1);border-radius:12px;"></div>
+    </div>
+  </main>
+
+  <div class="reconnection-overlay" id="reconnectOverlay" style="display:none;">
+    <div class="reconnection-modal">
+      <div class="spinner"></div>
+      <h2>Reconectando...</h2>
+      <p>Tiempo restante: <span id="reconnectTimer">30</span>s</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const GAME_TYPE = 'air_hockey';
+    const SERVER = 'http://179.7.80.126:8000';
+    const userId = 'user_' + Date.now();
+    const authToken = 'token_' + Math.random().toString(36).substr(2);
+    
+    const socket = io(SERVER, {
+      auth: { userId, authToken, gameType: GAME_TYPE },
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      document.getElementById('connStatus').textContent = '🟢 Conectado';
+      document.getElementById('reconnectOverlay').style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connStatus').textContent = '🔴 Desconectado';
+      document.getElementById('reconnectOverlay').style.display = 'flex';
+    });
+
+    socket.on('gameState', (state) => {
+      document.getElementById('p1Score').textContent = state.p1Score || 0;
+      document.getElementById('p2Score').textContent = state.p2Score || 0;
+      if (state.puck) {
+        const puck = document.getElementById('puck');
+        puck.style.left = state.puck.x + '%';
+        puck.style.top = state.puck.y + '%';
+      }
+    });
+
+    // Touch paddle control
+    const touchArea = document.getElementById('touchArea');
+    const paddle = document.getElementById('myPaddle');
+    
+    touchArea.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const rect = touchArea.getBoundingClientRect();
+      const x = (e.touches[0].clientX - rect.left) / rect.width;
+      paddle.style.left = (x * 80 + 10) + '%';
+      socket.emit('paddleMove', { x: x });
+    });
+  </script>
+</body>
+</html>

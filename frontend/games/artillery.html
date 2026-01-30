@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Artillery - Kompite</title>
+  <link rel="stylesheet" href="/css/mobile-first.css">
+  <style>
+    .game-canvas { width: 100%; height: 60vh; background: linear-gradient(180deg, #87ceeb 0%, #e0f0ff 50%, #8b4513 80%, #654321 100%); border-radius: 12px; position: relative; }
+    .cannon { width: 50px; height: 80px; position: absolute; bottom: 20%; }
+    .cannon.left { left: 10%; background: #2d5016; }
+    .cannon.right { right: 10%; background: #8b0000; }
+    .projectile { width: 15px; height: 15px; background: #333; border-radius: 50%; position: absolute; display: none; }
+    .power-bar { width: 80%; height: 30px; margin: 10px auto; background: #333; border-radius: 15px; overflow: hidden; }
+    .power-fill { height: 100%; background: linear-gradient(90deg, #0f0, #ff0, #f00); width: 50%; }
+    .angle-display { text-align: center; font-size: 24px; margin: 10px; }
+  </style>
+</head>
+<body>
+  <header class="game-header">
+    <a href="/" class="back-btn">← Lobby</a>
+    <h1>💣 Artillery</h1>
+    <div class="connection-status" id="connStatus">Conectando...</div>
+  </header>
+
+  <main class="game-container">
+    <div class="score-display" style="font-size:28px;padding:10px;">
+      Vida: <span id="p1HP">100</span> vs <span id="p2HP">100</span>
+    </div>
+    <div class="game-canvas" id="gameCanvas">
+      <div class="cannon left" id="myCannon"></div>
+      <div class="cannon right" id="enemyCannon"></div>
+      <div class="projectile" id="projectile"></div>
+    </div>
+    
+    <div class="angle-display">Ángulo: <span id="angle">45</span>°</div>
+    <div class="power-bar"><div class="power-fill" id="powerFill"></div></div>
+    
+    <div class="controls-container">
+      <button class="action-btn" id="angleDown">◀ Ángulo</button>
+      <button class="action-btn action-btn-lg" id="fireBtn">🔥 FUEGO</button>
+      <button class="action-btn" id="angleUp">Ángulo ▶</button>
+    </div>
+  </main>
+
+  <div class="reconnection-overlay" id="reconnectOverlay" style="display:none;">
+    <div class="reconnection-modal">
+      <div class="spinner"></div>
+      <h2>Reconectando...</h2>
+      <p>Tiempo restante: <span id="reconnectTimer">30</span>s</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const GAME_TYPE = 'artillery';
+    const SERVER = 'http://179.7.80.126:8000';
+    const userId = 'user_' + Date.now();
+    const authToken = 'token_' + Math.random().toString(36).substr(2);
+    
+    let angle = 45;
+    let power = 50;
+    let powerDirection = 1;
+    let powerInterval;
+    
+    const socket = io(SERVER, {
+      auth: { userId, authToken, gameType: GAME_TYPE },
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      document.getElementById('connStatus').textContent = '🟢 Conectado';
+      document.getElementById('reconnectOverlay').style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connStatus').textContent = '🔴 Desconectado';
+      document.getElementById('reconnectOverlay').style.display = 'flex';
+    });
+
+    socket.on('gameState', (state) => {
+      document.getElementById('p1HP').textContent = state.p1HP || 100;
+      document.getElementById('p2HP').textContent = state.p2HP || 100;
+    });
+
+    // Controls
+    document.getElementById('angleDown').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      angle = Math.max(0, angle - 5);
+      document.getElementById('angle').textContent = angle;
+    });
+
+    document.getElementById('angleUp').addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      angle = Math.min(90, angle + 5);
+      document.getElementById('angle').textContent = angle;
+    });
+
+    const fireBtn = document.getElementById('fireBtn');
+    fireBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      powerInterval = setInterval(() => {
+        power += powerDirection * 2;
+        if (power >= 100 || power <= 0) powerDirection *= -1;
+        document.getElementById('powerFill').style.width = power + '%';
+      }, 50);
+    });
+
+    fireBtn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      clearInterval(powerInterval);
+      socket.emit('fire', { angle, power });
+    });
+  </script>
+</body>
+</html>
