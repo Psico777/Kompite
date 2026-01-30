@@ -140,11 +140,23 @@ if (CONFIG.DATABASE_URL) {
 // ═══════════════════════════════════════════════════════════════════════════
 const app = express();
 
-// Security Headers
+// Security Headers - Configured for mobile frames and game assets
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for game assets
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  frameguard: false
 }));
+
+// Additional headers for mobile compatibility
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  next();
+});
 
 // CORS
 app.use(cors({
@@ -318,6 +330,23 @@ const JWTAuth = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PASSWORD HASHING
+// ═══════════════════════════════════════════════════════════════════════════
+const PasswordUtils = {
+  hash(password) {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    return `${salt}:${hash}`;
+  },
+  
+  verify(password, storedHash) {
+    const [salt, hash] = storedHash.split(':');
+    const verifyHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    return hash === verifyHash;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // IN-MEMORY DATA STORES (Fallback when PostgreSQL not available)
 // ═══════════════════════════════════════════════════════════════════════════
 const dataStore = {
@@ -325,7 +354,8 @@ const dataStore = {
   matches: new Map(),
   ledger: [],
   sessions: new Map(),
-  disconnectedUsers: new Map()
+  disconnectedUsers: new Map(),
+  registeredUsers: new Map() // email -> {userId, passwordHash, email}
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -955,7 +985,170 @@ CONFIG.GAMES.forEach(game => {
   });
 });
 
-// Auth endpoint
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTHENTICATION ENDPOINTS (Register / Login)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Register new user
+app.post('/auth/register', async (req, res) => {
+  const { email, password, username } = req.body;
+  
+  if (!email || !password || !username) {
+    return res.status(400).json({ error: 'Email, password and username required' });
+  }
+  
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  
+  // Check if user exists
+  if (dataStore.registeredUsers.has(email)) {
+    logger.warn('Registration attempt with existing email', { email, action: 'REGISTER_DUPLICATE' });
+    return res.status(409).json({ error: 'Email already registered' });
+  }
+  
+  const userId = `USER_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const passwordHash = PasswordUtils.hash(password);
+  
+  // Store user
+  dataStore.registeredUsers.set(email, {
+    userId,
+    email,
+    username,
+    passwordHash,
+    createdAt: new Date()
+  });
+  
+  // Initialize game balance
+  await DB.initializeUser(userId);
+  
+  // Generate token
+  const token = JWTAuth.generateToken(userId);
+  
+  logger.info('User registered', { userId, email, username, action: 'REGISTER_SUCCESS' });
+  
+  res.json({
+    success: true,
+    userId,
+    username,
+    token,
+    expiresIn: CONFIG.JWT_EXPIRES_IN,
+    balance: 100,
+    trustScore: 50
+  });
+});
+
+// Login
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+  
+  const registeredUser = dataStore.registeredUsers.get(email);
+  
+  if (!registeredUser) {
+    logger.warn('Login attempt with unknown email', { email, action: 'LOGIN_NOT_FOUND' });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  
+  if (!PasswordUtils.verify(password, registeredUser.passwordHash)) {
+    logger.warn('Login attempt with wrong password', { email, action: 'LOGIN_WRONG_PASSWORD' });
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  
+  // Get user data
+  const userData = await DB.getUser(registeredUser.userId);
+  const token = JWTAuth.generateToken(registeredUser.userId);
+  
+  logger.info('User logged in', { userId: registeredUser.userId, email, action: 'LOGIN_SUCCESS' });
+  
+  res.json({
+    success: true,
+    userId: registeredUser.userId,
+    username: registeredUser.username,
+    token,
+    expiresIn: CONFIG.JWT_EXPIRES_IN,
+    balance: userData?.balance || 100,
+    trustScore: userData?.trust_score || 50
+  });
+});
+
+// Get profile (protected)
+app.get('/auth/profile', JWTAuth.middleware, async (req, res) => {
+  const userId = req.user.userId;
+  const userData = await DB.getUser(userId);
+  
+  // Find registered user info
+  let userInfo = null;
+  for (const [email, data] of dataStore.registeredUsers) {
+    if (data.userId === userId) {
+      userInfo = { email, username: data.username, createdAt: data.createdAt };
+      break;
+    }
+  }
+  
+  res.json({
+    userId,
+    username: userInfo?.username || userId,
+    email: userInfo?.email || null,
+    balance: userData?.balance || 0,
+    trustScore: userData?.trust_score || 50,
+    balanceHash: userData?.balance_hash,
+    createdAt: userInfo?.createdAt || userData?.created_at,
+    lastActivity: userData?.last_activity
+  });
+});
+
+// Redeem LKC (protected)
+app.post('/auth/redeem', JWTAuth.middleware, async (req, res) => {
+  const userId = req.user.userId;
+  const { amount } = req.body;
+  
+  if (!amount || amount <= 0) {
+    return res.status(400).json({ error: 'Valid amount required' });
+  }
+  
+  const userData = await DB.getUser(userId);
+  
+  if (!userData || userData.balance < amount) {
+    logger.warn('Redeem attempt with insufficient balance', { userId, balance: userData?.balance, requested: amount, action: 'REDEEM_INSUFFICIENT' });
+    return res.status(400).json({ error: 'Insufficient balance', balance: userData?.balance || 0 });
+  }
+  
+  // Process redemption
+  const oldBalance = userData.balance;
+  const newBalance = oldBalance - amount;
+  
+  await DB.updateBalance(userId, newBalance, 'LKC_REDEMPTION');
+  
+  // Record in ledger
+  await DB.recordLedger({
+    userId,
+    type: 'REDEMPTION',
+    amount: -amount,
+    oldBalance,
+    newBalance,
+    reason: 'LKC_CASH_OUT',
+    metadata: {
+      redemptionId: `REDEEM_${Date.now()}`,
+      titular: CONFIG.TITULAR
+    }
+  });
+  
+  logger.info('LKC redeemed', { userId, amount, oldBalance, newBalance, action: 'REDEEM_SUCCESS' });
+  
+  res.json({
+    success: true,
+    redemptionId: `REDEEM_${Date.now()}`,
+    amount,
+    newBalance,
+    message: `${amount} LKC canjeados exitosamente`
+  });
+});
+
+// Legacy token endpoint
 app.post('/auth/token', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId required' });

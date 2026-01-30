@@ -3,3 +3,9 @@
 {"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 18:49:46.913","titular":"Yordy Jesús Rojas Baldeon"}
 {"level":"warn","message":"DATABASE_URL not set - using in-memory storage (data will be lost on restart)","service":"kompite-mvp","timestamp":"2026-01-30 18:49:47.978","titular":"Yordy Jesús Rojas Baldeon"}
 {"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 18:49:48.021","titular":"Yordy Jesús Rojas Baldeon"}
+{"level":"warn","message":"DATABASE_URL not set - using in-memory storage (data will be lost on restart)","service":"kompite-mvp","timestamp":"2026-01-30 18:49:55.008","titular":"Yordy Jesús Rojas Baldeon"}
+{"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 18:49:55.050","titular":"Yordy Jesús Rojas Baldeon"}
+{"level":"warn","message":"DATABASE_URL not set - using in-memory storage (data will be lost on restart)","service":"kompite-mvp","timestamp":"2026-01-30 18:54:51.553","titular":"Yordy Jesús Rojas Baldeon"}
+{"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 18:54:51.623","titular":"Yordy Jesús Rojas Baldeon"}
+{"level":"warn","message":"DATABASE_URL not set - using in-memory storage (data will be lost on restart)","service":"kompite-mvp","timestamp":"2026-01-30 19:03:59.269","titular":"Yordy Jesús Rojas Baldeon"}
+{"error":"error:04800064:PEM routines::bad base64 decode","level":"warn","message":"Could not setup HTTPS - using HTTP only","service":"kompite-mvp","timestamp":"2026-01-30 19:03:59.309","titular":"Yordy Jesús Rojas Baldeon"}

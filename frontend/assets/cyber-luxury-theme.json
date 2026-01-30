@@ -1,0 +1,258 @@
+{
+  "theme": "cyber-luxury",
+  "version": "2.0",
+  "titular": "Yordy Jesús Rojas Baldeon",
+  
+  "colors": {
+    "primary": "#FFD700",
+    "secondary": "#8B5CF6",
+    "accent": "#06B6D4",
+    "background": "#0F0F1A",
+    "surface": "#1A1A2E",
+    "border": "#2D2D44",
+    "success": "#10B981",
+    "danger": "#EF4444",
+    "gradient": "linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #FFD700 100%)"
+  },
+  
+  "games": {
+    "cabezones": {
+      "name": "Cabezones Cyber",
+      "icon": "⚽",
+      "field": {
+        "background": "linear-gradient(180deg, #0F0F1A 0%, #1A1A2E 100%)",
+        "lines": "#8B5CF6",
+        "goalGlow": "#FFD700",
+        "grass": "none"
+      },
+      "ball": {
+        "color": "#FFD700",
+        "glow": "0 0 30px rgba(255, 215, 0, 0.8)",
+        "trail": true,
+        "trailColor": "rgba(255, 215, 0, 0.3)"
+      },
+      "players": {
+        "p1": {
+          "headColor": "#8B5CF6",
+          "bodyColor": "#06B6D4",
+          "glow": "0 0 20px rgba(139, 92, 246, 0.6)"
+        },
+        "p2": {
+          "headColor": "#EC4899",
+          "bodyColor": "#F59E0B",
+          "glow": "0 0 20px rgba(236, 72, 153, 0.6)"
+        }
+      },
+      "effects": {
+        "goalExplosion": true,
+        "particleColor": "#FFD700",
+        "screenShake": true
+      }
+    },
+    
+    "air_hockey": {
+      "name": "Air Hockey Neon",
+      "icon": "🏒",
+      "table": {
+        "background": "#0F0F1A",
+        "surface": "radial-gradient(circle, #1A1A2E 0%, #0F0F1A 100%)",
+        "borderColor": "#8B5CF6",
+        "borderGlow": "0 0 40px rgba(139, 92, 246, 0.5)",
+        "centerLine": "#FFD700",
+        "centerCircle": "#8B5CF6"
+      },
+      "puck": {
+        "color": "#FFD700",
+        "glow": "0 0 25px rgba(255, 215, 0, 0.9)",
+        "trail": true
+      },
+      "paddles": {
+        "p1": {
+          "color": "#8B5CF6",
+          "glow": "0 0 20px rgba(139, 92, 246, 0.7)"
+        },
+        "p2": {
+          "color": "#EC4899",
+          "glow": "0 0 20px rgba(236, 72, 153, 0.7)"
+        }
+      },
+      "goals": {
+        "color": "#10B981",
+        "glowOnScore": "0 0 50px rgba(16, 185, 129, 1)"
+      }
+    },
+    
+    "artillery": {
+      "name": "Artillery Warfare",
+      "icon": "💣",
+      "terrain": {
+        "background": "linear-gradient(180deg, #0F0F1A 0%, #16213E 50%, #1A1A2E 100%)",
+        "ground": "#2D2D44",
+        "groundGlow": "0 0 10px rgba(139, 92, 246, 0.3)"
+      },
+      "tanks": {
+        "p1": {
+          "bodyColor": "#8B5CF6",
+          "cannonColor": "#06B6D4",
+          "glow": "0 0 15px rgba(139, 92, 246, 0.5)"
+        },
+        "p2": {
+          "bodyColor": "#EC4899",
+          "cannonColor": "#F59E0B",
+          "glow": "0 0 15px rgba(236, 72, 153, 0.5)"
+        }
+      },
+      "projectile": {
+        "color": "#FFD700",
+        "trail": "linear-gradient(90deg, rgba(255, 215, 0, 0) 0%, rgba(255, 215, 0, 1) 100%)",
+        "explosion": {
+          "colors": ["#FFD700", "#EC4899", "#8B5CF6"],
+          "duration": 500
+        }
+      },
+      "wind": {
+        "indicatorColor": "#06B6D4",
+        "arrowGlow": true
+      }
+    },
+    
+    "duel": {
+      "name": "Duel Combat",
+      "icon": "👊",
+      "arena": {
+        "background": "radial-gradient(circle at center, #1A1A2E 0%, #0F0F1A 100%)",
+        "floor": "#2D2D44",
+        "floorGlow": "0 0 100px rgba(139, 92, 246, 0.2)"
+      },
+      "fighters": {
+        "p1": {
+          "primaryColor": "#8B5CF6",
+          "secondaryColor": "#06B6D4",
+          "aura": "0 0 40px rgba(139, 92, 246, 0.4)"
+        },
+        "p2": {
+          "primaryColor": "#EC4899",
+          "secondaryColor": "#F59E0B",
+          "aura": "0 0 40px rgba(236, 72, 153, 0.4)"
+        }
+      },
+      "actions": {
+        "attack": { "color": "#EF4444", "icon": "⚔️" },
+        "defend": { "color": "#3B82F6", "icon": "🛡️" },
+        "dodge": { "color": "#10B981", "icon": "💨" },
+        "heavy": { "color": "#F59E0B", "icon": "💥" },
+        "counter": { "color": "#EC4899", "icon": "↩️" },
+        "feint": { "color": "#8B5CF6", "icon": "👻" }
+      },
+      "effects": {
+        "hitSpark": "#FFD700",
+        "comboGlow": true
+      }
+    },
+    
+    "snowball": {
+      "name": "Snowball Blitz",
+      "icon": "❄️",
+      "arena": {
+        "background": "linear-gradient(180deg, #1E3A5F 0%, #0F0F1A 100%)",
+        "ground": "#2D4A6A",
+        "snowParticles": true
+      },
+      "players": {
+        "p1": {
+          "color": "#8B5CF6",
+          "outfitGlow": "0 0 15px rgba(139, 92, 246, 0.5)"
+        },
+        "p2": {
+          "color": "#EC4899",
+          "outfitGlow": "0 0 15px rgba(236, 72, 153, 0.5)"
+        }
+      },
+      "snowball": {
+        "color": "#FFFFFF",
+        "glow": "0 0 10px rgba(255, 255, 255, 0.8)",
+        "trail": true,
+        "trailColor": "rgba(255, 255, 255, 0.3)"
+      },
+      "freezeEffect": {
+        "color": "#06B6D4",
+        "iceOverlay": "rgba(6, 182, 212, 0.5)",
+        "shatterAnimation": true
+      }
+    },
+    
+    "memoria": {
+      "name": "Memoria Matrix",
+      "icon": "🧠",
+      "board": {
+        "background": "#0F0F1A",
+        "gridGlow": "0 0 30px rgba(139, 92, 246, 0.3)"
+      },
+      "cards": {
+        "back": {
+          "color": "#1A1A2E",
+          "border": "#8B5CF6",
+          "pattern": "cyber-grid",
+          "glow": "0 0 10px rgba(139, 92, 246, 0.3)"
+        },
+        "front": {
+          "background": "#2D2D44",
+          "border": "#FFD700",
+          "symbolGlow": true
+        },
+        "matched": {
+          "glow": "0 0 20px rgba(16, 185, 129, 0.8)",
+          "fadeOut": true
+        }
+      },
+      "symbols": ["🍎", "🍊", "🍋", "🍇", "🍓", "🍒", "🥝", "🍑"],
+      "flipAnimation": {
+        "duration": 300,
+        "easing": "cubic-bezier(0.4, 0, 0.2, 1)"
+      }
+    }
+  },
+  
+  "ui": {
+    "fonts": {
+      "primary": "'Segoe UI', system-ui, sans-serif",
+      "display": "'Orbitron', sans-serif"
+    },
+    "buttons": {
+      "primary": {
+        "background": "linear-gradient(90deg, #8B5CF6, #EC4899)",
+        "color": "#FFFFFF",
+        "borderRadius": "10px",
+        "glow": "0 0 20px rgba(139, 92, 246, 0.5)"
+      },
+      "secondary": {
+        "background": "transparent",
+        "border": "1px solid #8B5CF6",
+        "color": "#8B5CF6"
+      }
+    },
+    "scoreDisplay": {
+      "background": "rgba(26, 26, 46, 0.9)",
+      "border": "2px solid #FFD700",
+      "textColor": "#FFD700",
+      "glow": "0 0 15px rgba(255, 215, 0, 0.5)"
+    },
+    "timer": {
+      "color": "#06B6D4",
+      "warningColor": "#F59E0B",
+      "criticalColor": "#EF4444"
+    }
+  },
+  
+  "sounds": {
+    "enabled": true,
+    "volume": 0.7,
+    "effects": {
+      "goal": "cyber-score.mp3",
+      "hit": "cyber-hit.mp3",
+      "match": "cyber-match.mp3",
+      "win": "cyber-victory.mp3",
+      "lose": "cyber-defeat.mp3"
+    }
+  }
+}
