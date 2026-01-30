@@ -610,49 +610,14 @@ function initLudoGame(gameArea) {
 
 const GAMES = [
     {
-        type: 'PENALTY_KICKS',
-        name: 'Penales',
+        type: 'CABEZONES',
+        name: 'Cabezones',
         icon: '⚽',
-        description: 'Tiro de penales 1v1 con física realista',
+        description: 'Head Soccer 1v1 con física realista',
         minBet: 1,
-        maxBet: 1000,
-        playersOnline: 0
-    },
-    {
-        type: 'BASKETBALL',
-        name: 'Tiro Libre',
-        icon: '🏀',
-        description: 'Competencia de tiros libres',
-        minBet: 1,
-        maxBet: 1000,
-        playersOnline: 0
-    },
-    {
-        type: 'ROCK_PAPER_SCISSORS',
-        name: 'Piedra, Papel, Tijera',
-        icon: '✊',
-        description: 'Clásico juego de estrategia mental',
-        minBet: 0.5,
         maxBet: 100,
-        playersOnline: 0
-    },
-    {
-        type: 'MEMORY',
-        name: 'Memoria',
-        icon: '🧠',
-        description: 'Encuentra las parejas antes que tu rival',
-        minBet: 1,
-        maxBet: 500,
-        playersOnline: 0
-    },
-    {
-        type: 'LUDO',
-        name: 'Ludo',
-        icon: '🎲',
-        description: 'Clásico juego de mesa 1v1',
-        minBet: 1,
-        maxBet: 500,
-        playersOnline: 0
+        playersOnline: 0,
+        enabled: true
     },
     {
         type: 'AIR_HOCKEY',
@@ -661,7 +626,19 @@ const GAMES = [
         description: 'Hockey de mesa con física realista',
         minBet: 1,
         maxBet: 1000,
-        playersOnline: 0
+        playersOnline: 0,
+        enabled: true
+    },
+    {
+        type: 'LUDO',
+        name: 'Ludo',
+        icon: '🎲',
+        description: 'Clásico juego de mesa 1v1',
+        minBet: 1,
+        maxBet: 500,
+        playersOnline: 0,
+        enabled: false,
+        status: 'Preparando'
     }
 ];
 
@@ -674,16 +651,20 @@ function renderGames() {
     const grid = document.getElementById('games-grid');
     
     grid.innerHTML = GAMES.map(game => `
-        <div class="game-card" data-game-type="${game.type}" onclick="openBetModal('${game.type}')">
+        <div class="game-card ${!game.enabled ? 'disabled' : ''}" data-game-type="${game.type}" onclick="${game.enabled ? `openBetModal('${game.type}')` : 'event.preventDefault()'}">
             <div class="game-card-icon">${game.icon}</div>
             <h3 class="game-card-title">${game.name}</h3>
             <p class="game-card-description">${game.description}</p>
             <div class="game-card-meta">
-                <span class="game-card-players">
-                    <span class="dot connected"></span>
-                    ${game.playersOnline} online
-                </span>
-                <span class="game-card-bet">${game.minBet} - ${game.maxBet} LK</span>
+                ${game.enabled ? `
+                    <span class="game-card-players">
+                        <span class="dot connected"></span>
+                        ${game.playersOnline} online
+                    </span>
+                    <span class="game-card-bet">${game.minBet} - ${game.maxBet} LK</span>
+                ` : `
+                    <span class="game-status-badge">${game.status || 'No disponible'}</span>
+                `}
             </div>
         </div>
     `).join('');
