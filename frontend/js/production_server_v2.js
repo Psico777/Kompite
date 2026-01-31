@@ -630,19 +630,153 @@ const DB = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 class CabezonesPhysicsEngine {
-  constructor() { this.gravity = 0.5; this.friction = 0.98; this.ballRadius = 25; this.goalHeight = 180; }
-  createMatch(matchId, players) {
-    return { matchId, players, ball: { x: 512, y: 288, vx: 0, vy: 0 }, p1: { x: 200, y: 400, vx: 0, vy: 0, score: 0 }, p2: { x: 824, y: 400, vx: 0, vy: 0, score: 0 }, startTime: Date.now(), duration: 60000, gameType: 'cabezones' };
+  constructor() { 
+    this.gravity = 0.8; 
+    this.friction = 0.95; 
+    this.ballRadius = 25; 
+    this.goalHeight = 180;
+    this.playerSpeed = 8;
+    this.jumpForce = -15;
+    this.groundY = 450;
+    this.kickForce = 12;
   }
+  createMatch(matchId, players) {
+    return { 
+      matchId, 
+      players, 
+      ball: { x: 512, y: 300, vx: 0, vy: 0, radius: 20 }, 
+      p1: { x: 200, y: this.groundY, vx: 0, vy: 0, score: 0, isJumping: false, isKicking: false, facingRight: true }, 
+      p2: { x: 824, y: this.groundY, vx: 0, vy: 0, score: 0, isJumping: false, isKicking: false, facingRight: false }, 
+      startTime: Date.now(), 
+      duration: 60000, 
+      gameType: 'cabezones' 
+    };
+  }
+  
+  processInput(state, player, action, data) {
+    const p = state[player];
+    
+    switch(action) {
+      case 'move':
+        // Movimiento horizontal
+        p.vx = (data.dx || 0) * this.playerSpeed;
+        if (data.dx > 0) p.facingRight = true;
+        else if (data.dx < 0) p.facingRight = false;
+        break;
+      case 'jump':
+        if (!p.isJumping && p.y >= this.groundY - 5) {
+          p.vy = this.jumpForce;
+          p.isJumping = true;
+        }
+        break;
+      case 'kick':
+        p.isKicking = true;
+        // Aplicar fuerza al balón si está cerca
+        const dx = state.ball.x - p.x;
+        const dy = state.ball.y - p.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 80) {
+          const angle = Math.atan2(dy, dx);
+          state.ball.vx = Math.cos(angle) * this.kickForce + p.vx * 0.5;
+          state.ball.vy = Math.sin(angle) * this.kickForce - 5;
+        }
+        // Reset kick después de un breve tiempo
+        setTimeout(() => { p.isKicking = false; }, 200);
+        break;
+    }
+  }
+  
   update(state, deltaTime) {
-    state.ball.vy += this.gravity; state.ball.x += state.ball.vx; state.ball.y += state.ball.vy; state.ball.vx *= this.friction;
-    if (state.ball.y > 500) { state.ball.y = 500; state.ball.vy *= -0.6; }
-    if (state.ball.x < 25 || state.ball.x > 999) state.ball.vx *= -1;
-    if (state.ball.x < 50 && state.ball.y > 300 && state.ball.y < 480) { state.p2.score++; this.resetBall(state); }
-    else if (state.ball.x > 974 && state.ball.y > 300 && state.ball.y < 480) { state.p1.score++; this.resetBall(state); }
+    // Actualizar jugador 1
+    this.updatePlayer(state, state.p1, 50, 500);
+    // Actualizar jugador 2
+    this.updatePlayer(state, state.p2, 524, 974);
+    
+    // Actualizar balón
+    state.ball.vy += this.gravity;
+    state.ball.x += state.ball.vx;
+    state.ball.y += state.ball.vy;
+    state.ball.vx *= this.friction;
+    state.ball.vy *= 0.99;
+    
+    // Colisión balón con suelo
+    if (state.ball.y > this.groundY - 10) { 
+      state.ball.y = this.groundY - 10; 
+      state.ball.vy *= -0.7;
+      state.ball.vx *= 0.9;
+    }
+    
+    // Colisión balón con techo
+    if (state.ball.y < 50) {
+      state.ball.y = 50;
+      state.ball.vy *= -0.5;
+    }
+    
+    // Colisión balón con paredes
+    if (state.ball.x < 30) { state.ball.x = 30; state.ball.vx *= -0.8; }
+    if (state.ball.x > 994) { state.ball.x = 994; state.ball.vx *= -0.8; }
+    
+    // Colisión balón con jugadores (cabeza)
+    this.checkBallPlayerCollision(state, state.p1);
+    this.checkBallPlayerCollision(state, state.p2);
+    
+    // Detectar goles
+    // Portería izquierda (P2 marca)
+    if (state.ball.x < 40 && state.ball.y > 320 && state.ball.y < 480) { 
+      state.p2.score++; 
+      this.resetBall(state, 1); 
+    }
+    // Portería derecha (P1 marca)
+    else if (state.ball.x > 984 && state.ball.y > 320 && state.ball.y < 480) { 
+      state.p1.score++; 
+      this.resetBall(state, 2); 
+    }
+    
     return state;
   }
-  resetBall(state) { state.ball = { x: 512, y: 288, vx: 0, vy: 0 }; }
+  
+  updatePlayer(state, player, minX, maxX) {
+    // Aplicar gravedad
+    player.vy += this.gravity;
+    
+    // Mover jugador
+    player.x += player.vx;
+    player.y += player.vy;
+    
+    // Fricción horizontal
+    player.vx *= 0.85;
+    
+    // Límites horizontales
+    if (player.x < minX) player.x = minX;
+    if (player.x > maxX) player.x = maxX;
+    
+    // Colisión con suelo
+    if (player.y >= this.groundY) {
+      player.y = this.groundY;
+      player.vy = 0;
+      player.isJumping = false;
+    }
+  }
+  
+  checkBallPlayerCollision(state, player) {
+    const dx = state.ball.x - player.x;
+    const dy = state.ball.y - (player.y - 40); // Centro de la cabeza
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    
+    if (dist < 45) { // Radio de colisión
+      const angle = Math.atan2(dy, dx);
+      const force = player.isKicking ? this.kickForce * 1.5 : 8;
+      state.ball.vx = Math.cos(angle) * force + player.vx * 0.3;
+      state.ball.vy = Math.sin(angle) * force - 3;
+      // Separar balón del jugador
+      state.ball.x = player.x + Math.cos(angle) * 50;
+      state.ball.y = (player.y - 40) + Math.sin(angle) * 50;
+    }
+  }
+  
+  resetBall(state, lastScorer) { 
+    state.ball = { x: 512, y: 200, vx: lastScorer === 1 ? -3 : 3, vy: 0, radius: 20 }; 
+  }
 }
 
 class AirHockeyPhysicsEngine {
@@ -729,13 +863,37 @@ const PhysicsEngines = {
 // ═══════════════════════════════════════════════════════════════════════════
 const MatchManager = {
   queue: new Map(),
+  botTimers: new Map(),
   
   async joinQueue(userId, gameType, socket) {
     if (!this.queue.has(gameType)) this.queue.set(gameType, []);
     const gameQueue = this.queue.get(gameType);
     
+    // Verificar si el usuario ya está en la cola
+    const existingIndex = gameQueue.findIndex(p => p.userId === userId);
+    if (existingIndex !== -1) {
+      // Actualizar el socket del usuario existente
+      gameQueue[existingIndex].socket = socket;
+      logger.info('Player updated in queue', { userId, gameType, action: 'QUEUE_UPDATE' });
+      return { matched: false, queuePosition: existingIndex + 1 };
+    }
+    
     if (gameQueue.length > 0) {
       const opponent = gameQueue.shift();
+      
+      // Evitar que el mismo usuario juegue contra sí mismo
+      if (opponent.userId === userId) {
+        gameQueue.push({ userId, socket });
+        logger.warn('Same user tried to match with self', { userId, gameType, action: 'QUEUE_SELF_MATCH_PREVENTED' });
+        return { matched: false, queuePosition: 1 };
+      }
+      
+      // Cancelar el timer de bot si existía
+      if (this.botTimers.has(opponent.userId)) {
+        clearTimeout(this.botTimers.get(opponent.userId));
+        this.botTimers.delete(opponent.userId);
+      }
+      
       const matchId = `MATCH_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
       const engine = PhysicsEngines[gameType];
       const match = engine.createMatch(matchId, [opponent.userId, userId]);
@@ -754,7 +912,83 @@ const MatchManager = {
     
     gameQueue.push({ userId, socket });
     logger.info('Player queued', { userId, gameType, queueSize: gameQueue.length, action: 'QUEUE_JOIN' });
+    
+    // Configurar timer para crear partida con bot después de 15 segundos
+    const botTimer = setTimeout(() => {
+      this.createBotMatch(userId, gameType, socket);
+    }, 15000);
+    this.botTimers.set(userId, botTimer);
+    
     return { matched: false, queuePosition: gameQueue.length };
+  },
+  
+  async createBotMatch(userId, gameType, socket) {
+    const gameQueue = this.queue.get(gameType);
+    if (!gameQueue) return;
+    
+    // Verificar que el usuario sigue en la cola
+    const playerIndex = gameQueue.findIndex(p => p.userId === userId);
+    if (playerIndex === -1) return; // Ya encontró oponente
+    
+    // Remover de la cola
+    gameQueue.splice(playerIndex, 1);
+    this.botTimers.delete(userId);
+    
+    const botId = `BOT_${crypto.randomBytes(4).toString('hex')}`;
+    const matchId = `MATCH_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const engine = PhysicsEngines[gameType];
+    const match = engine.createMatch(matchId, [userId, botId]);
+    match.status = 'ACTIVE';
+    match.pot = CONFIG.SOFT_LOCK_AMOUNT * 2;
+    match.isBot = true;
+    match.botId = botId;
+    
+    dataStore.matches.set(matchId, match);
+    socket.join(matchId);
+    
+    logger.info('Bot match created', { matchId, gameType, player: userId, bot: botId, action: 'BOT_MATCH_CREATED' });
+    
+    // Notificar al jugador
+    socket.emit('matchFound', { 
+      matchId, 
+      players: match.players,
+      opponent: botId,
+      isBot: true
+    });
+    
+    // Iniciar comportamiento del bot
+    this.startBotBehavior(match, gameType);
+  },
+  
+  startBotBehavior(match, gameType) {
+    if (gameType !== 'cabezones') return;
+    
+    const botInterval = setInterval(() => {
+      if (match.status !== 'ACTIVE') {
+        clearInterval(botInterval);
+        return;
+      }
+      
+      const bot = match.p2;
+      const ball = match.ball;
+      const engine = PhysicsEngines[gameType];
+      
+      // IA simple: moverse hacia la pelota
+      const dx = ball.x - bot.x;
+      const moveDir = dx > 20 ? 1 : (dx < -20 ? -1 : 0);
+      engine.processInput(match, 'p2', 'move', { dx: moveDir * 0.7, dy: 0 });
+      
+      // Saltar si la pelota está alta y cerca
+      if (Math.abs(dx) < 150 && ball.y < 350 && !bot.isJumping && Math.random() < 0.3) {
+        engine.processInput(match, 'p2', 'jump', {});
+      }
+      
+      // Patear si la pelota está muy cerca
+      const dist = Math.sqrt(dx*dx + Math.pow(ball.y - bot.y, 2));
+      if (dist < 100 && Math.random() < 0.5) {
+        engine.processInput(match, 'p2', 'kick', {});
+      }
+    }, 100);
   },
   
   async endMatch(matchId, winnerId) {
@@ -767,6 +1001,18 @@ const MatchManager = {
     
     const loserId = match.players.find(p => p !== winnerId);
     const result = await DB.atomicSettlement(matchId, winnerId, loserId, CONFIG.SOFT_LOCK_AMOUNT);
+    
+    // Emitir evento de fin de partida a todos los jugadores
+    io.to(matchId).emit('matchEnded', { 
+      matchId, 
+      winnerId, 
+      loserId,
+      p1Score: match.p1?.score || 0,
+      p2Score: match.p2?.score || 0,
+      isDraw: !winnerId
+    });
+    
+    logger.info('Match ended', { matchId, winnerId, loserId, p1Score: match.p1?.score, p2Score: match.p2?.score, action: 'MATCH_END' });
     
     return { ...result, matchId, winnerId, loserId };
   }
@@ -815,12 +1061,13 @@ const io = socketIO(server, {
 // Socket.io JWT Authentication Middleware
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  const clientUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
   
   if (!token) {
-    // Allow anonymous connections but mark them
-    socket.userId = `ANON_${crypto.randomBytes(8).toString('hex')}`;
+    // Allow anonymous connections but use client-provided userId if available
+    socket.userId = clientUserId || `ANON_${crypto.randomBytes(8).toString('hex')}`;
     socket.authenticated = false;
-    logger.warn('Anonymous socket connection', { socketId: socket.id, action: 'SOCKET_ANON' });
+    logger.warn('Anonymous socket connection', { socketId: socket.id, userId: socket.userId, action: 'SOCKET_ANON' });
     return next();
   }
   
@@ -844,6 +1091,7 @@ io.on('connection', async (socket) => {
   
   logger.info('Socket connected', { userId, socketId: socket.id, authenticated: socket.authenticated, action: 'SOCKET_CONNECT' });
   
+  console.log(`[connected] Emitiendo evento 'connected' a userId: ${userId}`);
   socket.emit('connected', { 
     userId, 
     authenticated: socket.authenticated,
@@ -872,17 +1120,35 @@ io.on('connection', async (socket) => {
   // Game actions
   socket.on('gameAction', async ({ matchId, action, data }, callback) => {
     const match = dataStore.matches.get(matchId);
-    if (!match || match.status !== 'ACTIVE') return callback?.({ error: 'Invalid match' });
+    
+    // Logging para debug
+    if (action !== 'move') {
+      console.log(`[gameAction] User: ${userId}, Match: ${matchId}, Action: ${action}, Match exists: ${!!match}, Status: ${match?.status}`);
+    }
+    
+    if (!match) {
+      console.warn(`[gameAction] Match not found: ${matchId}`);
+      return callback?.({ error: 'Match not found' });
+    }
+    
+    if (match.status !== 'ACTIVE') {
+      console.warn(`[gameAction] Match not active: ${matchId}, status: ${match.status}`);
+      return callback?.({ error: 'Match not active' });
+    }
     
     const engine = PhysicsEngines[match.gameType];
     let result;
     
     switch (match.gameType) {
       case 'cabezones':
-        if (action === 'move') {
-          const player = match.players[0] === userId ? 'p1' : 'p2';
-          match[player].vx = data.vx || 0; match[player].vy = data.vy || 0;
+        // Verificar que el usuario está en el match
+        const playerIndex = match.players.indexOf(userId);
+        if (playerIndex === -1) {
+          console.warn(`[gameAction] User ${userId} not in match ${matchId}. Players: ${match.players}`);
+          return callback?.({ error: 'Not in match' });
         }
+        const cbPlayer = playerIndex === 0 ? 'p1' : 'p2';
+        engine.processInput(match, cbPlayer, action, data);
         break;
       case 'artillery':
         if (action === 'fire') {
@@ -960,8 +1226,18 @@ setInterval(() => {
     switch (match.gameType) {
       case 'cabezones':
         engine.update(match, 16);
-        io.to(matchId).emit('gameState', { ball: match.ball, p1Score: match.p1.score, p2Score: match.p2.score });
-        if (Date.now() - match.startTime > 60000) { const winner = match.p1.score > match.p2.score ? match.players[0] : match.players[1]; MatchManager.endMatch(matchId, winner); }
+        io.to(matchId).emit('gameState', { 
+          ball: match.ball, 
+          p1: { x: match.p1.x, y: match.p1.y, score: match.p1.score, isKicking: match.p1.isKicking, facingRight: match.p1.facingRight },
+          p2: { x: match.p2.x, y: match.p2.y, score: match.p2.score, isKicking: match.p2.isKicking, facingRight: match.p2.facingRight },
+          p1Score: match.p1.score, 
+          p2Score: match.p2.score,
+          timeLeft: Math.max(0, 60000 - (Date.now() - match.startTime))
+        });
+        if (Date.now() - match.startTime > 60000) { 
+          const winner = match.p1.score > match.p2.score ? match.players[0] : (match.p2.score > match.p1.score ? match.players[1] : null); 
+          MatchManager.endMatch(matchId, winner); 
+        }
         break;
       case 'air_hockey': engine.update(match, null); break;
       case 'artillery': if (match.projectile) { engine.update(match); io.to(matchId).emit('projectileUpdate', match.projectile); } if (match.p1.hp <= 0) MatchManager.endMatch(matchId, match.players[1]); if (match.p2.hp <= 0) MatchManager.endMatch(matchId, match.players[0]); break;

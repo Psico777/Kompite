@@ -442,9 +442,31 @@
       });
       
       socket.on('connect', () => {
-        console.log('🟢 Conectado');
+        console.log('🟢 Socket.io connect event');
         updateConnectionStatus(true);
         hideReconnectOverlay();
+        updateWaitingStatus('Conectando...', 'Esperando confirmación');
+        
+        // Fallback: si no recibimos 'connected' en 2 segundos, unirse a la cola directamente
+        setTimeout(() => {
+          if (!isPlaying && !currentMatch) {
+            console.log('⚠️ Timeout esperando evento connected, uniendo a cola...');
+            joinMatchmaking();
+          }
+        }, 2000);
+      });
+      
+      // Evento cuando el servidor confirma la conexión y nos da nuestro userId
+      socket.on('connected', (data) => {
+        console.log('🔗 Servidor confirmó conexión:', data);
+        console.log('🔗 userId actual:', userId);
+        // Actualizar userId con el que el servidor nos asignó
+        if (data.userId && data.userId !== userId) {
+          console.log('📝 Actualizando userId:', userId, '->', data.userId);
+          userId = data.userId;
+          localStorage.setItem('kompite_userId', userId);
+        }
+        console.log('🔗 Llamando joinMatchmaking()...');
         updateWaitingStatus('Conectado! Buscando rival...', 'Entrando en cola');
         joinMatchmaking();
       });
@@ -463,30 +485,54 @@
       });
       
       socket.on('matchFound', async (data) => {
-        console.log('🎮 Match:', data);
+        console.log('🎮 Match encontrado:', data);
+        console.log('🎮 Data completa:', JSON.stringify(data, null, 2));
         currentMatch = data;
         myPlayerSlot = data.players[0] === userId ? 'p1' : 'p2';
-        updateWaitingStatus('¡Rival encontrado!', 'Iniciando...');
-        await executeSoftLock();
-        startGame(data);
+        console.log('👤 Mi userId:', userId);
+        console.log('👤 Players:', data.players);
+        console.log('👤 Soy jugador:', myPlayerSlot, 'matchId:', data.matchId);
+        updateWaitingStatus('¡Rival encontrado!', data.isBot ? '(vs Bot)' : 'Iniciando...');
+        const lockOk = await executeSoftLock();
+        console.log('🔒 SoftLock result:', lockOk);
+        if (lockOk !== false) {
+          console.log('🚀 Iniciando juego...');
+          startGame(data);
+        }
       });
       
-      socket.on('gameState', (state) => updateGameState(state));
+      socket.on('gameState', (state) => {
+        if (!isPlaying) {
+          console.log('⚠️ gameState recibido pero isPlaying=false');
+          return; // Ignorar estados si el juego no está activo
+        }
+        updateGameState(state);
+      });
       
       socket.on('matchEnded', (result) => {
-        console.log('🏁 Fin:', result);
+        console.log('🏁 Partido terminado:', result);
+        isPlaying = false;
         endGame(result);
       });
       
-      socket.on('opponentDisconnected', (data) => {
-        updateWaitingStatus('Oponente desconectado', 'Esperando ' + data.reconnectionWindow + 's...');
+      // Manejo de errores
+      socket.on('error', (error) => {
+        console.error('❌ Error socket:', error);
+      });
+      
+      socket.on('connect_error', (error) => {
+        console.error('❌ Error conexión:', error);
+        updateConnectionStatus(false);
       });
     }
     
     function joinMatchmaking() {
+      console.log('📋 joinMatchmaking() llamado');
+      console.log('📋 Socket connected:', socket.connected);
+      console.log('📋 GAME_TYPE:', GAME_TYPE);
       socket.emit('joinQueue', { gameType: GAME_TYPE }, (response) => {
-        console.log('Queue:', response);
-        if (response.error) updateWaitingStatus('Error', response.error);
+        console.log('📋 Queue response:', response);
+        if (response?.error) updateWaitingStatus('Error', response.error);
       });
     }
     
@@ -567,16 +613,101 @@
       }, 1000);
     }
     function hideReconnectOverlay() { document.getElementById('reconnectOverlay').style.display = 'none'; }
+    
     function updateGameState(state) {
+      // Actualizar scores
       document.getElementById('p1Score').textContent = state.p1Score ?? state.p1?.score ?? 0;
       document.getElementById('p2Score').textContent = state.p2Score ?? state.p2?.score ?? 0;
-      if (state.ball) renderGame(state);
+      
+      // Actualizar timer desde el servidor
+      if (state.timeLeft !== undefined) {
+        const secs = Math.ceil(state.timeLeft / 1000);
+        const mins = Math.floor(secs / 60);
+        const secsRemaining = secs % 60;
+        document.getElementById('gameTimer').textContent = 
+          String(mins).padStart(2,'0') + ':' + String(secsRemaining).padStart(2,'0');
+      }
+      
+      // Renderizar el juego
+      if (state.ball || state.p1 || state.p2) {
+        renderGame(state);
+      }
     }
     
     let ctx = null, lastState = null;
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CARGA DE SPRITES DE PERSONAJES
+    // ═══════════════════════════════════════════════════════════════════════════
+    const ASSETS_PATH = '/js/games/cabezones/client/assets/';
+    const sprites = {
+      pitch: new Image(),
+      // Son Heung-min
+      son: { right: new Image(), left: new Image(), kickRight: new Image(), kickLeft: new Image() },
+      // Benzema
+      benzema: { right: new Image(), left: new Image(), kickRight: new Image(), kickLeft: new Image() },
+      // Mbappé  
+      mbappe: { right: new Image(), left: new Image(), kickRight: new Image(), kickLeft: new Image() }
+    };
+    let spritesLoaded = false;
+    
+    function loadSprites() {
+      return new Promise((resolve) => {
+        let loaded = 0;
+        const total = 13;
+        
+        const onLoad = () => { loaded++; if (loaded >= total) { spritesLoaded = true; resolve(); } };
+        const onError = (e) => { console.warn('Sprite error:', e.target.src); onLoad(); };
+        
+        // Pitch
+        sprites.pitch.onload = onLoad; sprites.pitch.onerror = onError;
+        sprites.pitch.src = ASSETS_PATH + 'pitch_night.png';
+        
+        // Son
+        sprites.son.right.onload = onLoad; sprites.son.right.onerror = onError;
+        sprites.son.right.src = ASSETS_PATH + 'son.png';
+        sprites.son.left.onload = onLoad; sprites.son.left.onerror = onError;
+        sprites.son.left.src = ASSETS_PATH + 'son_flipped.png';
+        sprites.son.kickRight.onload = onLoad; sprites.son.kickRight.onerror = onError;
+        sprites.son.kickRight.src = ASSETS_PATH + 'kicking_son.png';
+        sprites.son.kickLeft.onload = onLoad; sprites.son.kickLeft.onerror = onError;
+        sprites.son.kickLeft.src = ASSETS_PATH + 'kicking_son_flipped.png';
+        
+        // Benzema
+        sprites.benzema.right.onload = onLoad; sprites.benzema.right.onerror = onError;
+        sprites.benzema.right.src = ASSETS_PATH + 'benzema_shoe_right.png';
+        sprites.benzema.left.onload = onLoad; sprites.benzema.left.onerror = onError;
+        sprites.benzema.left.src = ASSETS_PATH + 'benzema_shoe_left.png';
+        sprites.benzema.kickRight.onload = onLoad; sprites.benzema.kickRight.onerror = onError;
+        sprites.benzema.kickRight.src = ASSETS_PATH + 'benzema_shoe_up_right.png';
+        sprites.benzema.kickLeft.onload = onLoad; sprites.benzema.kickLeft.onerror = onError;
+        sprites.benzema.kickLeft.src = ASSETS_PATH + 'benzema_shoe_up_left.png';
+        
+        // Mbappé
+        sprites.mbappe.right.onload = onLoad; sprites.mbappe.right.onerror = onError;
+        sprites.mbappe.right.src = ASSETS_PATH + 'mbappe_shoe_right.png';
+        sprites.mbappe.left.onload = onLoad; sprites.mbappe.left.onerror = onError;
+        sprites.mbappe.left.src = ASSETS_PATH + 'mbappe_shoe_left.png';
+        sprites.mbappe.kickRight.onload = onLoad; sprites.mbappe.kickRight.onerror = onError;
+        sprites.mbappe.kickRight.src = ASSETS_PATH + 'mbappe_shoe_up_right.png';
+        sprites.mbappe.kickLeft.onload = onLoad; sprites.mbappe.kickLeft.onerror = onError;
+        sprites.mbappe.kickLeft.src = ASSETS_PATH + 'mbappe_shoe_up_left.png';
+        
+        // Timeout fallback
+        setTimeout(() => { if (!spritesLoaded) { spritesLoaded = true; resolve(); } }, 3000);
+      });
+    }
+    
+    // Personajes asignados (P1 siempre izquierda, P2 siempre derecha)
+    let p1Character = 'son';
+    let p2Character = 'benzema';
+    
     function initGameCanvas() {
       ctx = document.getElementById('canvas').getContext('2d');
-      requestAnimationFrame(renderLoop);
+      loadSprites().then(() => {
+        console.log('✅ Sprites cargados');
+        requestAnimationFrame(renderLoop);
+      });
     }
     function renderLoop() {
       if (!isPlaying) return;
@@ -587,48 +718,208 @@
       lastState = state;
       if (!ctx) return;
       const W = ctx.canvas.width, H = ctx.canvas.height;
-      ctx.fillStyle = '#1a472a'; ctx.fillRect(0, 0, W, H);
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2;
+      
+      // Dibujar fondo (pitch o gradiente)
+      if (spritesLoaded && sprites.pitch.complete && sprites.pitch.naturalWidth > 0) {
+        ctx.drawImage(sprites.pitch, 0, 0, W, H);
+      } else {
+        ctx.fillStyle = '#1a472a'; ctx.fillRect(0, 0, W, H);
+      }
+      
+      // Líneas del campo
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
       ctx.beginPath(); ctx.arc(W/2, H/2, 80, 0, Math.PI*2); ctx.stroke();
+      
+      // Porterías
       ctx.fillStyle = 'rgba(0,245,255,0.3)'; ctx.fillRect(0, H/2-80, 20, 160);
       ctx.fillStyle = 'rgba(255,0,191,0.3)'; ctx.fillRect(W-20, H/2-80, 20, 160);
+      
+      // Balón
       if (state.ball) {
         ctx.beginPath(); ctx.arc(state.ball.x, state.ball.y, 15, 0, Math.PI*2);
-        ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fill(); 
+        ctx.strokeStyle = '#333'; ctx.lineWidth = 2; ctx.stroke();
+        // Efecto de brillo
+        ctx.beginPath(); ctx.arc(state.ball.x-5, state.ball.y-5, 4, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fill();
       }
-      if (state.p1) drawPlayer(state.p1.x||200, state.p1.y||400, '#00f5ff', 'P1');
-      if (state.p2) drawPlayer(state.p2.x||824, state.p2.y||400, '#ff00bf', 'P2');
-    }
-    function drawPlayer(x, y, color, label) {
-      ctx.beginPath(); ctx.arc(x, y-30, 25, 0, Math.PI*2);
-      ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = color; ctx.fillRect(x-15, y-5, 30, 40);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(label, x, y-50);
+      
+      // Jugadores con sprites
+      const p1Data = state.p1 || { x: 200, y: 450, kicking: false, facingRight: true };
+      const p2Data = state.p2 || { x: 824, y: 450, kicking: false, facingRight: false };
+      
+      drawPlayer(p1Data.x || 200, p1Data.y || 450, p1Character, p1Data.isKicking || p1Data.kicking, p1Data.facingRight !== false, 'P1');
+      drawPlayer(p2Data.x || 824, p2Data.y || 450, p2Character, p2Data.isKicking || p2Data.kicking, p2Data.facingRight === true, 'P2');
     }
     
-    // Controls
+    function drawPlayer(x, y, character, isKicking, facingRight, label) {
+      const charSprites = sprites[character] || sprites.son;
+      const PLAYER_SIZE = 100;
+      
+      let sprite;
+      if (isKicking) {
+        sprite = facingRight ? charSprites.kickRight : charSprites.kickLeft;
+      } else {
+        sprite = facingRight ? charSprites.right : charSprites.left;
+      }
+      
+      // Dibujar sprite si está cargado
+      if (spritesLoaded && sprite && sprite.complete && sprite.naturalWidth > 0) {
+        ctx.drawImage(sprite, x - PLAYER_SIZE/2, y - PLAYER_SIZE, PLAYER_SIZE, PLAYER_SIZE);
+      } else {
+        // Fallback: dibujar personaje simple con colores
+        const color = label === 'P1' ? '#00f5ff' : '#ff00bf';
+        // Cabeza
+        ctx.beginPath(); ctx.arc(x, y - 60, 30, 0, Math.PI*2);
+        ctx.fillStyle = color; ctx.fill(); 
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+        // Cuerpo
+        ctx.fillStyle = color;
+        ctx.fillRect(x - 15, y - 30, 30, 40);
+        // Piernas
+        ctx.fillRect(x - 12, y + 10, 10, 25);
+        ctx.fillRect(x + 2, y + 10, 10, 25);
+        // Ojos
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x - 10, y - 65, 5, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + 10, y - 65, 5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(x - 10, y - 65, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + 10, y - 65, 2, 0, Math.PI*2); ctx.fill();
+      }
+      
+      // Etiqueta del jugador
+      ctx.fillStyle = label === 'P1' ? '#00f5ff' : '#ff00bf';
+      ctx.font = 'bold 14px sans-serif'; 
+      ctx.textAlign = 'center'; 
+      ctx.fillText(label, x, y - PLAYER_SIZE - 10);
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CONTROLS - Joystick, Buttons & Keyboard
+    // ═══════════════════════════════════════════════════════════════════════════
     const jz = document.getElementById('joystickZone'), jk = document.getElementById('joystickKnob');
     let ja = false, jc = {x:0,y:0};
-    jz.addEventListener('touchstart', e => { e.preventDefault(); ja = true; const r = jz.getBoundingClientRect(); jc = {x:r.left+r.width/2, y:r.top+r.height/2}; });
+    let currentMoveX = 0;
+    
+    // Función para enviar acciones al servidor
+    function sendAction(action, data = {}) {
+      if (!isPlaying || !currentMatch?.matchId) {
+        console.warn('⚠️ No se puede enviar acción:', { isPlaying, matchId: currentMatch?.matchId });
+        return;
+      }
+      socket.emit('gameAction', { 
+        matchId: currentMatch.matchId, 
+        action, 
+        data 
+      }, (response) => {
+        if (response?.error) {
+          console.error('❌ Error en acción:', response.error);
+        }
+      });
+    }
+    
+    // Touch Controls - Joystick
+    jz.addEventListener('touchstart', e => { 
+      e.preventDefault(); 
+      ja = true; 
+      const r = jz.getBoundingClientRect(); 
+      jc = {x:r.left+r.width/2, y:r.top+r.height/2}; 
+    });
     jz.addEventListener('touchmove', e => {
-      e.preventDefault(); if (!ja || !isPlaying) return;
-      const t = e.touches[0]; let dx = t.clientX - jc.x, dy = t.clientY - jc.y;
+      e.preventDefault(); 
+      if (!ja) return;
+      const t = e.touches[0]; 
+      let dx = t.clientX - jc.x, dy = t.clientY - jc.y;
       const d = Math.sqrt(dx*dx+dy*dy), m = 50;
       if (d > m) { dx = dx/d*m; dy = dy/d*m; }
       jk.style.transform = 'translate(calc(-50% + '+dx+'px), calc(-50% + '+dy+'px))';
-      socket.emit('gameAction', { matchId: currentMatch?.matchId, action: 'move', data: {dx:dx/m, dy:dy/m} });
+      currentMoveX = dx/m;
+      sendAction('move', {dx: currentMoveX, dy: 0});
     });
     jz.addEventListener('touchend', () => {
-      ja = false; jk.style.transform = 'translate(-50%, -50%)';
-      if (isPlaying) socket.emit('gameAction', { matchId: currentMatch?.matchId, action: 'move', data: {dx:0,dy:0} });
+      ja = false; 
+      jk.style.transform = 'translate(-50%, -50%)';
+      currentMoveX = 0;
+      sendAction('move', {dx: 0, dy: 0});
     });
+    
+    // Touch Controls - Buttons
     document.getElementById('jumpBtn').addEventListener('touchstart', e => {
-      e.preventDefault(); if (isPlaying) socket.emit('gameAction', { matchId: currentMatch?.matchId, action: 'jump', data: {} });
+      e.preventDefault(); 
+      sendAction('jump', {});
     });
     document.getElementById('kickBtn').addEventListener('touchstart', e => {
-      e.preventDefault(); if (isPlaying) socket.emit('gameAction', { matchId: currentMatch?.matchId, action: 'kick', data: {} });
+      e.preventDefault(); 
+      sendAction('kick', {});
     });
+    
+    // Mouse Controls (for desktop testing)
+    jz.addEventListener('mousedown', e => { 
+      ja = true; 
+      const r = jz.getBoundingClientRect(); 
+      jc = {x:r.left+r.width/2, y:r.top+r.height/2}; 
+    });
+    document.addEventListener('mousemove', e => {
+      if (!ja) return;
+      let dx = e.clientX - jc.x;
+      const m = 50;
+      if (Math.abs(dx) > m) dx = dx > 0 ? m : -m;
+      jk.style.transform = 'translate(calc(-50% + '+dx+'px), -50%)';
+      currentMoveX = dx/m;
+      sendAction('move', {dx: currentMoveX, dy: 0});
+    });
+    document.addEventListener('mouseup', () => {
+      if (ja) {
+        ja = false;
+        jk.style.transform = 'translate(-50%, -50%)';
+        currentMoveX = 0;
+        sendAction('move', {dx: 0, dy: 0});
+      }
+    });
+    
+    // Click Controls - Buttons  
+    document.getElementById('jumpBtn').addEventListener('click', e => {
+      e.preventDefault();
+      sendAction('jump', {});
+    });
+    document.getElementById('kickBtn').addEventListener('click', e => {
+      e.preventDefault();
+      sendAction('kick', {});
+    });
+    
+    // Keyboard Controls
+    const keysPressed = {};
+    document.addEventListener('keydown', e => {
+      if (keysPressed[e.key]) return; // Evitar repetición
+      keysPressed[e.key] = true;
+      
+      // Saltar con W, ArrowUp o Espacio
+      if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp' || e.key === ' ') {
+        e.preventDefault();
+        sendAction('jump', {});
+      }
+      // Patear con Shift o Enter
+      if (e.key === 'Shift' || e.key === 'Enter') {
+        e.preventDefault();
+        sendAction('kick', {});
+      }
+      
+      updateMovementFromKeys();
+    });
+    
+    document.addEventListener('keyup', e => {
+      keysPressed[e.key] = false;
+      updateMovementFromKeys();
+    });
+    
+    function updateMovementFromKeys() {
+      let dx = 0;
+      if (keysPressed['a'] || keysPressed['A'] || keysPressed['ArrowLeft']) dx -= 1;
+      if (keysPressed['d'] || keysPressed['D'] || keysPressed['ArrowRight']) dx += 1;
+      sendAction('move', {dx, dy: 0});
+    }
     
     initSocket();
   </script>
